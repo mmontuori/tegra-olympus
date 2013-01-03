@@ -26,10 +26,14 @@
 #include <linux/pda_power.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
+#include <linux/memblock.h>
+#include <linux/spi-tegra.h>
 
+#include <asm/bootinfo.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
+#include <mach/nand.h>
 #include <asm/setup.h>
 
 #include <mach/io.h>
@@ -39,6 +43,7 @@
 #include <mach/sdhci.h>
 #include <mach/gpio.h>
 #include <mach/clk.h>
+#include <mach/spi.h>
 
 #include <linux/usb/android_composite.h>
 
@@ -48,30 +53,9 @@
 #include "gpio-names.h"
 #include "devices.h"
 
-/* NVidia bootloader tags */
-#define ATAG_NVIDIA		0x41000801
-
-#define ATAG_NVIDIA_RM			0x1
-#define ATAG_NVIDIA_DISPLAY		0x2
-#define ATAG_NVIDIA_FRAMEBUFFER		0x3
-#define ATAG_NVIDIA_CHIPSHMOO		0x4
-#define ATAG_NVIDIA_CHIPSHMOOPHYS	0x5
-#define ATAG_NVIDIA_PRESERVED_MEM_0	0x10000
-#define ATAG_NVIDIA_PRESERVED_MEM_N	2
-#define ATAG_NVIDIA_FORCE_32		0x7fffffff
-
-struct tag_tegra {
-	__u32 bootarg_key;
-	__u32 bootarg_len;
-	char bootarg[1];
-};
-
-static int __init parse_tag_nvidia(const struct tag *tag)
-{
-
-	return 0;
-}
-__tagtable(ATAG_NVIDIA, parse_tag_nvidia);
+/*
+ * Debugging
+ */
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
@@ -93,6 +77,19 @@ static struct platform_device debug_uart = {
 	.dev = {
 		.platform_data = debug_uart_platform_data,
 	},
+};
+
+static struct resource ram_console_resource[] = {
+	{
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device ram_console_device = {
+	.name = "ram_console",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(ram_console_resource),
+	.resource = ram_console_resource,
 };
 
 /* OTG gadget device */
@@ -269,50 +266,335 @@ static struct platform_device *olympus_devices[] __initdata = {
 	&tegra_spi_device4,
 	&tegra_gart_dev,
 	&tegra_grhost_dev,
+	&ram_console_device,
+};
+/* 
+ * SDHCI init
+ */
+
+static u64 tegra_dma_mask = DMA_BIT_MASK(32);
+
+extern struct tegra_nand_platform tegra_nand_plat;
+
+static struct tegra_sdhci_platform_data olympus_wifi_data = { /* SDHCI 1 */
+		.mmc_data = {
+			.built_in = 1,
+		},
+		.wp_gpio = -1,
+		.cd_gpio = -1,
+		.power_gpio = -1,
+/*		.max_clk_limit = 50000000,*/
 };
 
-extern struct tegra_sdhci_platform_data olympus_wifi_data; /* sdhci1 */
-
-static struct tegra_sdhci_platform_data olympus_sdhci_platform_data3 = {
-};
-
+/*
 static struct tegra_sdhci_platform_data olympus_sdhci_platform_data4 = {
 	.cd_gpio = TEGRA_GPIO_PH2,
 	.wp_gpio = TEGRA_GPIO_PH3,
 	.power_gpio = TEGRA_GPIO_PI6,
 };
+*/
 
-static __initdata struct tegra_clk_init_table olympus_clk_init_table[] = {
-	/* name		parent		rate		enabled */
-	{ "uartb",	"clk_m",	26000000,	true},
-	{ "host1x",	"pll_p",	108000000,	true},
-	{ "2d",		"pll_m",	50000000,	true},
-	{ "epp",	"pll_m",	50000000,	true},
-	{ "vi",		"pll_m",	50000000,	true},
-	{ NULL,		NULL,		0,		0},
+static struct tegra_sdhci_platform_data olympus_sdhci_platform_data3 = {
+		.mmc_data = {
+			.built_in = 0,
+			.card_present = 0,
+		},
+		.wp_gpio = -1,
+		.cd_gpio = 69,
+		.power_gpio = -1,
+/*		.max_clk_limit = 50000000,*/
 };
 
+static struct tegra_sdhci_platform_data olympus_sdhci_platform_data4 = {
+		.mmc_data = {
+			.built_in = 1,
+		},
+		.wp_gpio = -1,
+		.cd_gpio = -1,
+		.power_gpio = -1,
+		.is_8bit = 1,
+/*		.max_clk_limit = 50000000,*/
+};
+
+static struct resource tegra_sdhci_resources[][2] = {
+	[0] = {
+		[0] = {
+			.start = TEGRA_SDMMC1_BASE,
+			.end = TEGRA_SDMMC1_BASE + TEGRA_SDMMC1_SIZE - 1,
+			.flags = IORESOURCE_MEM,
+		},
+		[1] = {
+			.start = INT_SDMMC1,
+			.end = INT_SDMMC1,
+			.flags = IORESOURCE_IRQ,
+		},
+	},
+	[1] = {
+		[0] = {
+			.start = TEGRA_SDMMC2_BASE,
+			.end = TEGRA_SDMMC2_BASE + TEGRA_SDMMC2_SIZE - 1,
+			.flags = IORESOURCE_MEM,
+		},
+		[1] = {
+			.start = INT_SDMMC2,
+			.end = INT_SDMMC2,
+			.flags = IORESOURCE_IRQ,
+		},
+	},
+	[2] = {
+		[0] = {
+			.start = TEGRA_SDMMC3_BASE,
+			.end = TEGRA_SDMMC3_BASE + TEGRA_SDMMC3_SIZE - 1,
+			.flags = IORESOURCE_MEM,
+		},
+		[1] = {
+			.start = INT_SDMMC3,
+			.end = INT_SDMMC3,
+			.flags = IORESOURCE_IRQ,
+		},
+	},
+	[3] = {
+		[0] = {
+			.start = TEGRA_SDMMC4_BASE,
+			.end = TEGRA_SDMMC4_BASE + TEGRA_SDMMC4_SIZE - 1,
+			.flags = IORESOURCE_MEM,
+		},
+		[1] = {
+			.start = INT_SDMMC4,
+			.end = INT_SDMMC4,
+			.flags = IORESOURCE_IRQ,
+		},
+	},
+};
+
+struct platform_device tegra_sdhci_devices[] = {
+	[0] = {
+		.id = 0,
+		.name = "tegra-sdhci",
+		.resource = tegra_sdhci_resources[0],
+		.num_resources = ARRAY_SIZE(tegra_sdhci_resources[0]),
+		.dev = {
+			.platform_data = &olympus_wifi_data,
+			.coherent_dma_mask = DMA_BIT_MASK(32),
+			.dma_mask = &tegra_dma_mask,
+		},
+	},
+	[1] = {},
+	[2] = {
+		.id = 2,
+		.name = "tegra-sdhci",
+		.resource = tegra_sdhci_resources[2],
+		.num_resources = ARRAY_SIZE(tegra_sdhci_resources[2]),
+		.dev = {
+			.platform_data = &olympus_sdhci_platform_data3,
+			.coherent_dma_mask = DMA_BIT_MASK(32),
+			.dma_mask = &tegra_dma_mask,
+		},
+	},
+	[3] = {
+		.id = 3,
+		.name = "tegra-sdhci",
+		.resource = tegra_sdhci_resources[3],
+		.num_resources = ARRAY_SIZE(tegra_sdhci_resources[3]),
+		.dev = {
+			.platform_data = &olympus_sdhci_platform_data4,
+			.coherent_dma_mask = DMA_BIT_MASK(32),
+			.dma_mask = &tegra_dma_mask,
+		},
+	},
+};
+
+static const char tegra_sdio_ext_reg_str[] = "vsdio_ext";
+int tegra_sdhci_boot_device = -1;
 
 static void olympus_sdhci_init(void)
 {
+		int i;
+#if 0
 	/* TODO: setup GPIOs for cd, wd, and power */
 	tegra_sdhci_device1.dev.platform_data = &olympus_wifi_data;
 	tegra_sdhci_device3.dev.platform_data = &olympus_sdhci_platform_data3;
 	tegra_sdhci_device4.dev.platform_data = &olympus_sdhci_platform_data4;
+#endif
+	printk(KERN_INFO "pICS_%s: Starting...",__func__);
+	/* check if an "MBR" partition was parsed from the tegra partition
+		 * command line, and store it in sdhci.3's offset field */
+	for (i=0; i<tegra_nand_plat.nr_parts; i++) {
+		if (strcmp("mbr", tegra_nand_plat.parts[i].name))
+			continue;
+		olympus_sdhci_platform_data4.offset = tegra_nand_plat.parts[i].offset;
+		printk(KERN_INFO "pICS_%s: tegra_sdhci_boot_device plat->offset = 0x%llx ",__func__, tegra_nand_plat.parts[i].offset);	
+		}
 
-	platform_device_register(&tegra_sdhci_device1);
+	platform_device_register(&tegra_sdhci_devices[3]);
+	platform_device_register(&tegra_sdhci_devices[0]);
+	platform_device_register(&tegra_sdhci_devices[2]);
+
+/*	platform_device_register(&tegra_sdhci_device1);
 	platform_device_register(&tegra_sdhci_device3);
-	platform_device_register(&tegra_sdhci_device4); 
+	platform_device_register(&tegra_sdhci_device4); */
 }
+
+static struct tegra_spi_platform_data tegra_spi_platform[] = {
+	[0] = {
+	},
+	[1] = {
+	},
+	[2] = {
+	},
+	[3] = {
+	},
+	[4] = {
+	},
+};
+static struct platform_device tegra_spi_devices[] = {
+	[0] = {
+		.name = "tegra_spi_slave",
+		.id = 0,
+		.dev = {
+			.platform_data = &tegra_spi_platform[0],
+		},
+	},
+	[1] = {
+		.name = "tegra_spi",
+		.id = 1,
+		.dev = {
+			.platform_data = &tegra_spi_platform[1],
+		},
+	},
+	[2] = {
+		.name = "tegra_spi",
+		.id = 2,
+		.dev = {
+			.platform_data = &tegra_spi_platform[2],
+		},
+	},
+	[3] = {
+		.name = "tegra_spi",
+		.id = 3,
+		.dev = {
+			.platform_data = &tegra_spi_platform[3],
+		},
+	},
+	[4] = {
+		.name = "tegra_spi",
+		.id = 4,
+		.dev = {
+			.platform_data = &tegra_spi_platform[4],
+		},
+	},
+};
+
+static void olympus_spi_init(void)
+{
+
+
+	int rc;
+
+	rc = platform_device_register(&tegra_spi_devices[0]);
+	if (rc) {
+		pr_err("%s: registration of %s.%d failed\n",
+		       __func__, tegra_spi_devices[0].name, tegra_spi_devices[0].id);
+	}
+
+	rc = platform_device_register(&tegra_spi_devices[1]);
+	if (rc) {
+		pr_err("%s: registration of %s.%d failed\n",
+		       __func__, tegra_spi_devices[1].name, tegra_spi_devices[1].id);
+	}
+
+	rc = platform_device_register(&tegra_spi_devices[2]);
+	if (rc) {
+		pr_err("%s: registration of %s.%d failed\n",
+		       __func__, tegra_spi_devices[2].name, tegra_spi_devices[2].id);
+	}
+
+	printk(KERN_INFO "pICS_%s: Ending...",__func__);
+}
+
+static __initdata struct tegra_clk_init_table olympus_clk_init_table[] = {
+	/* name		parent		rate		enabled */
+/*	{ "uartb",	"clk_m",	26000000,	true},
+	{ "host1x",	"pll_p",	108000000,	true},
+	{ "2d",		"pll_m",	50000000,	true},
+	{ "epp",	"pll_m",	50000000,	true},
+	{ "vi",		"pll_m",	50000000,	true},
+	{ NULL,		NULL,		0,		0},*/
+	{ "uartb",	"pll_p",	216000000,	true},
+	{ "uartc",	"pll_m",	600000000,	true},
+	{ "uartd",	"pll_p",	216000000,	true},
+	{ "emc",	"pll_m",	600000000,	true},
+	{ "pll_m",	NULL,		600000000,	true},
+	{ "mpe",	"pll_c",	300000000,	false},
+	{ "pll_a",	"pll_p_out1",	56448000,	false},
+	{ "pll_a_out0",	"pll_a",	11289600,	false},
+	{ "i2s1",	"pll_a_out0",	2822400,	false},
+	{ "i2s2",	"clk_m",	26000000,	false},
+	{ "sdmmc4",	"pll_p",	48000000,	true},
+	{ "sdmmc2",	"pll_p",	48000000,	false},
+	{ "spdif_out",	"pll_a_out0",	11289600,	false},
+	{ NULL,		NULL,		0,		0},
+};
 
 static void __init tegra_olympus_fixup(struct machine_desc *desc, struct tag *tags,
 				 char **cmdline, struct meminfo *mi)
 {
+	struct tag *t;
+	int i;
+
+	/*
+	 * Dump some key ATAGs
+	 */
+	for (t=tags; t->hdr.size; t = tag_next(t)) {
+		switch (t->hdr.tag) {
+		case ATAG_WLAN_MAC:        // 57464d41 parsed in board-mot-wlan.c
+		case ATAG_BLDEBUG:         // 41000811 same, in board-mot-misc.c
+		case ATAG_POWERUP_REASON:  // F1000401 ex: 0x4000, parsed after... ignore
+			break;
+		case ATAG_CORE:     // 54410001
+			printk("%s: atag_core hdr.size=%d\n", __func__, t->hdr.size);
+			break;
+		case ATAG_CMDLINE:
+			printk("%s: atag_cmdline=\"%s\"\n", __func__, t->u.cmdline.cmdline);
+			break;
+		case ATAG_REVISION: // 54410007
+			printk("%s: atag_revision=0x%x\n", __func__, t->u.revision.rev);
+			break;
+		case ATAG_SERIAL:   // 54410006
+			printk("%s: atag_serial=%x%x\n", __func__, t->u.serialnr.low, t->u.serialnr.high);
+			break;
+		case ATAG_INITRD2:  // 54420005
+			printk("%s: atag_initrd2=0x%x size=0x%x\n", __func__, t->u.initrd.start, t->u.initrd.size);
+			break;
+		case ATAG_MEM:
+			printk("%s: atag_mem.start=0x%x, mem.size=0x%x\n", __func__, t->u.mem.start, t->u.mem.size);
+			break;
+#ifdef CONFIG_MACH_OLYMPUS
+		case ATAG_MOTOROLA: // 41000810
+			printk("%s: atag_moto allow_fb=%d\n", __func__, t->u.motorola.allow_fb_open);
+			break;
+#endif
+		case ATAG_NVIDIA_TEGRA: // 41000801
+			printk("%s: atag_tegra=0x%X\n", __func__, t->u.tegra.bootarg_key);
+			break;
+		default:
+			printk("%s: ATAG %X\n", __func__, t->hdr.tag);
+		}
+	}
+
+	/*
+	 * Dump memory nodes
+	 */
+	for (i=0; i<mi->nr_banks; i++) {
+		printk("%s: bank[%d]=%lx@%lx\n", __func__, i, mi->bank[i].size, mi->bank[i].start);
+	}
+#if 0
 	mi->nr_banks = 2;
 	mi->bank[0].start = PHYS_OFFSET;
 	mi->bank[0].size = 448 * SZ_1M;
 	mi->bank[1].start = SZ_512M;
 	mi->bank[1].size = SZ_512M;
+#endif
 }
 
 static void __init tegra_olympus_init(void)
@@ -324,6 +606,7 @@ static void __init tegra_olympus_init(void)
 	   usb_data_en gpio is set.
 	 */
 	tegra_clk_init_from_table(olympus_clk_init_table);
+	olympus_emc_init();
 
 	tegra_gpio_enable(TEGRA_GPIO_PV6);
 	gpio_request(TEGRA_GPIO_PV6, "usb_data_en");
@@ -352,15 +635,51 @@ static void __init tegra_olympus_init(void)
 
 	olympus_keypad_init();
 	olympus_i2c_init();
-	olympus_panel_init();
 	olympus_sdhci_init();
+	olympus_spi_init();
+	olympus_power_init();
+	olympus_panel_init();
 	olympus_wlan_init();
+}
+
+int __init tegra_olympus_protected_aperture_init(void)
+{
+	tegra_protected_aperture_init(tegra_grhost_aperture);
+	return 0;
+}
+late_initcall(tegra_olympus_protected_aperture_init);
+
+void __init tegra_olympus_reserve(void)
+{
+	u64 ram_console_start;
+	int ret;
+
+	if (memblock_reserve(0x0, 4096) < 0) {
+			pr_warn("Cannot reserve first 4K of memory for safety\n");
+	}
+
+	tegra_reserve(SZ_256M, SZ_8M, SZ_16M);
+
+	/*!!!!!!!!!!!!! Reserve memory for the ram console. !!!!!!!!!!!!!!!!!!!!!!*/
+	ram_console_start = memblock_end_of_DRAM() - SZ_1M;
+
+	ret = memblock_remove(ram_console_start, SZ_1M);
+	if (ret < 0) {
+		pr_err("Failed to reserve 0x%x bytes for ram_console at "
+				"0x%llx, err = %d.\n",
+				SZ_1M, ram_console_start, ret);
+	} else {
+		ram_console_resource[0].start = ram_console_start;
+		ram_console_resource[0].end = ram_console_start + SZ_1M - 1;
+	}
+
 }
 
 MACHINE_START(OLYMPUS, "Olympus")
 	.boot_params  = 0x00000100,
 	.fixup		= tegra_olympus_fixup,
 	.map_io         = tegra_map_common_io,
+	.reserve        = tegra_olympus_reserve,
 	.init_early	= tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,

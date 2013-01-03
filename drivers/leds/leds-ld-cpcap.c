@@ -59,9 +59,9 @@ cpcap_led_set_blink(struct cpcap_led_data *info, unsigned long blink)
 
 	if (info->pdata->blink_able) {
 		if(info->blink_val) {
-			cpcap_uc_start(info->cpcap, CPCAP_MACRO_6);
+			cpcap_uc_start(info->cpcap, CPCAP_BANK_PRIMARY, CPCAP_MACRO_6);
 		} else {
-			cpcap_uc_stop(info->cpcap, CPCAP_MACRO_6);
+			cpcap_uc_stop(info->cpcap, CPCAP_BANK_PRIMARY, CPCAP_MACRO_6);
 			queue_work(system_nrt_wq, &info->brightness_work);
 		}
 	}

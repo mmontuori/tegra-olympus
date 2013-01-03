@@ -34,6 +34,14 @@
 #include <mach/powergate.h>
 #include <mach/system.h>
 
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/partitions.h>
+#include <linux/ctype.h>
+
+#include <mach/kbc.h>
+#include <mach/nand.h>
+#include <mach/sdhci.h>
+
 #include "apbio.h"
 #include "board.h"
 #include "clock.h"
@@ -52,6 +60,8 @@ unsigned long tegra_carveout_start;
 unsigned long tegra_carveout_size;
 unsigned long tegra_lp0_vec_start;
 unsigned long tegra_lp0_vec_size;
+unsigned long tegra_vpr_start;
+unsigned long tegra_vpr_size;
 unsigned long tegra_grhost_aperture;
 
 void (*arch_reset)(char mode, const char *cmd) = tegra_assert_system_reset;
@@ -66,6 +76,79 @@ void tegra_assert_system_reset(char mode, const char *cmd)
 	reg |= 0x04;
 	writel_relaxed(reg, reset);
 }
+
+#if defined(CONFIG_MTD_NAND_TEGRA) || defined(CONFIG_EMBEDDED_MMC_START_OFFSET)
+#define MAX_MTD_PARTNR 16
+static struct mtd_partition tegra_mtd_partitions[MAX_MTD_PARTNR];
+
+struct tegra_nand_platform tegra_nand_plat = {
+	.parts = tegra_mtd_partitions,
+	.nr_parts = 0,
+};
+
+static int __init tegrapart_setup(char *options)
+{
+	char *str = options;
+
+	if (!options || !*options)
+		return 0;
+
+	while (tegra_nand_plat.nr_parts < ARRAY_SIZE(tegra_mtd_partitions)) {
+		struct mtd_partition *part;
+		unsigned long long start, length, sector_sz;
+		char *tmp = str;
+
+		part = &tegra_nand_plat.parts[tegra_nand_plat.nr_parts];
+
+		while (*tmp && !isspace(*tmp) && *tmp!=':')
+			tmp++;
+
+		if (tmp==str || *tmp!=':') {
+			pr_err("%s: improperly formatted string %s\n",
+			       __func__, options);
+			break;
+		}
+
+		part->name = str;
+		*tmp = 0;
+
+		str = tmp+1;
+		start = simple_strtoull(str, &tmp, 16);
+		if (*tmp!=':')
+			break;
+		str = tmp+1;
+		length = simple_strtoull(str, &tmp, 16);
+		if (*tmp!=':')
+			break;
+		str = tmp+1;
+		sector_sz = simple_strtoull(str, &tmp, 16);
+
+		start *= sector_sz;
+		length *= sector_sz;
+		part->offset = start;
+		part->size = length;
+
+		pr_info("%s: %s at offset 0x%llx %llukB\n", __func__, part->name,
+			part->offset, part->size / 1024);
+
+		tegra_nand_plat.nr_parts++;
+		str = tmp+1;
+
+		if (*tmp!=',')
+			break;
+	}
+
+	/* clean up if the last partition was parsed incorrectly */
+	if (tegra_nand_plat.nr_parts < ARRAY_SIZE(tegra_mtd_partitions) &&
+	    tegra_mtd_partitions[tegra_nand_plat.nr_parts].name) {
+		kfree(tegra_mtd_partitions[tegra_nand_plat.nr_parts].name);
+		tegra_mtd_partitions[tegra_nand_plat.nr_parts].name = NULL;
+	}
+
+	return 0;
+}
+__setup("tegrapart=", tegrapart_setup);
+#endif
 
 static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	/* name		parent		rate		enabled */
@@ -179,6 +262,19 @@ static int __init tegra_bootloader_fb_arg(char *options)
 	return 0;
 }
 early_param("tegra_fbmem", tegra_bootloader_fb_arg);
+
+static int __init tegra_vpr_arg(char *options)
+{
+	char *p = options;
+
+	tegra_vpr_size = memparse(p, &p);
+	if (*p == '@')
+		tegra_vpr_start = memparse(p+1, &p);
+	pr_info("Found vpr, start=0x%lx size=%lx",
+		tegra_vpr_start, tegra_vpr_size);
+	return 0;
+}
+early_param("vpr", tegra_vpr_arg);
 
 /*
  * Tegra has a protected aperture that prevents access by most non-CPU
@@ -305,6 +401,7 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 		"Framebuffer:            %08lx - %08lx\n"
 		"2nd Framebuffer:         %08lx - %08lx\n"
 		"Carveout:               %08lx - %08lx\n",
+		"Vpr:                    %08lx - %08lx\n",
 		tegra_lp0_vec_start,
 		tegra_lp0_vec_start + tegra_lp0_vec_size - 1,
 		tegra_bootloader_fb_start,
@@ -314,5 +411,8 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 		tegra_fb2_start,
 		tegra_fb2_start + tegra_fb2_size - 1,
 		tegra_carveout_start,
-		tegra_carveout_start + tegra_carveout_size - 1);
+		tegra_carveout_start + tegra_carveout_size - 1,
+		tegra_vpr_start,
+		tegra_vpr_size ?
+			tegra_vpr_start + tegra_vpr_size - 1 : 0);
 }

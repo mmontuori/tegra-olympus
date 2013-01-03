@@ -34,6 +34,12 @@ config LEDS_ATMEL_PWM
 	  This option enables support for LEDs driven using outputs
 	  of the dedicated PWM controller found on newer Atmel SOCs.
 
+config LEDS_LM3532
+	tristate "Support for LM3530 display backlight driver"
+	depends on LEDS_CLASS
+	help
+	  This option enables support for LM3532 display backlight driver
+
 config LEDS_LM3530
 	tristate "LCD Backlight driver for LM3530"
 	depends on LEDS_CLASS
@@ -43,6 +49,18 @@ config LEDS_LM3530
 	  LM3530 ambient light sensor chip. This ALS chip can be
 	  controlled manually or using PWM input or using ambient
 	  light automatically.
+
+config LEDS_CPCAP_BUTTON
+	tristate "LED Support for Button LEDS connected to CPCAP"
+	depends on LEDS_CLASS && MFD_CPCAP
+	help
+	  This option enables support for button LEDs connected to CPCAP
+
+config LEDS_CPCAP_RGB
+	tristate "LED Support for RGB LEDS connected to CPCAP"
+	depends on LEDS_CLASS && MFD_CPCAP
+	help
+	  This option enables support for RGB LEDs connected to CPCAP
 
 config LEDS_LOCOMO
 	tristate "LED Support for Locomo device"

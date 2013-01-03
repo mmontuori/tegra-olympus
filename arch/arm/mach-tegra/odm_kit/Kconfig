@@ -1,0 +1,8 @@
+choice
+	prompt "Select ODM kit target board"
+
+config TEGRA_ODM_OLYMPUS
+	bool "Motorola OLYMPUS brassboard/phone"
+	depends on ARCH_TEGRA_2x_SOC
+
+endchoice

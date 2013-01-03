@@ -21,17 +21,18 @@
 #include <linux/platform_device.h>
 #include <linux/input.h>
 #include <linux/slab.h>
+#include <linux/wakelock.h>
 #include <linux/spi/cpcap.h>
 #include <linux/spi/cpcap-regbits.h>
 
-
+#define DUMP_WAKELOCK_WHILE_POWERKEY 1
 
 struct cpcap_key_data {
 	struct input_dev *input_dev;
 	struct cpcap_device *cpcap;
 };
 
-static int cpcap_key_probe(struct platform_device *pdev)
+static int __init cpcap_key_probe(struct platform_device *pdev)
 {
 	int err;
 	struct cpcap_key_data *key;
@@ -96,6 +97,10 @@ void cpcap_broadcast_key_event(struct cpcap_device *cpcap,
 {
 	struct cpcap_key_data *key = cpcap_get_keydata(cpcap);
 
+	// Dump wakelock state before LCD turn off
+	if (DUMP_WAKELOCK_WHILE_POWERKEY && code == KEY_END
+		&& value == 1)
+		dump_active_lock_static();
 	if (key && key->input_dev)
 		input_report_key(key->input_dev, code, value);
 }

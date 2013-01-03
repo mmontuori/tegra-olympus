@@ -214,6 +214,10 @@ static int tegra_sdhci_pltfm_init(struct sdhci_host *host,
 		gpio_direction_output(plat->power_gpio, 1);
 	}
 
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	host->start_offset = plat->offset;
+#endif
+
 	if (gpio_is_valid(plat->cd_gpio)) {
 		rc = gpio_request(plat->cd_gpio, "sdhci_cd");
 		if (rc) {

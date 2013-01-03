@@ -21,18 +21,24 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 #include <linux/workqueue.h>
+#ifdef CONFIG_SWITCH
 #include <linux/switch.h>
+#endif
+#ifdef CONFIG_MFD_CPCAP
 #include <linux/spi/cpcap.h>
+#endif
 
 #include "hid-ids.h"
 
-#define MOT_SEMU        0x0001
+#define MOT_SEMU 	0x0001
 #define MOT_IR_REMOTE	0x0002
 #define MOT_AUDIO_JACK	0x0004
 
-#define AUDIO_JACK_STATUS_REPORT    0x3E
+#define AUDIO_JACK_STATUS_REPORT	0x3E
 
+#ifdef CONFIG_SWITCH
 static struct switch_dev sdev;
+#endif
 
 struct motorola_sc {
 	unsigned long quirks;
@@ -40,15 +46,20 @@ struct motorola_sc {
 	struct work_struct work;
 };
 
-static void audio_jack_status_work(struct work_struct *work)
+static void audio_jack_status_work(struct work_struct* work)
 {
 	struct motorola_sc *sc = container_of(work, struct motorola_sc, work);
 
-	cpcap_accy_whisper_spdif_set_state(sc->audio_cable_inserted);
+#ifdef CONFIG_MFD_CPCAP
+	if (sc->audio_cable_inserted)
+		cpcap_accy_whisper_audio_switch_spdif_state(1);
+	else
+		cpcap_accy_whisper_audio_switch_spdif_state(0);
+#endif
 }
 
 static int mot_rawevent(struct hid_device *hdev, struct hid_report *report,
-		     u8 *data, int size)
+		     u8* data, int size)
 {
 	struct motorola_sc *sc = hid_get_drvdata(hdev);
 
@@ -56,6 +67,7 @@ static int mot_rawevent(struct hid_device *hdev, struct hid_report *report,
 
 	if (sc->quirks & MOT_AUDIO_JACK) {
 		if (data[0] == AUDIO_JACK_STATUS_REPORT) {
+			printk("HID %s: Audio cable %s\n", __func__, data[1] ? "inserted" : "removed");
 			sc->audio_cable_inserted = data[1];
 			schedule_work(&sc->work);
 			return 1;
@@ -92,8 +104,7 @@ static int mot_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if (quirks & MOT_SEMU)
 		connect_mask |= HID_CONNECT_HIDRAW;
 	if (quirks & MOT_IR_REMOTE)
-		connect_mask |= (HID_CONNECT_HIDINPUT |
-				HID_CONNECT_HIDINPUT_FORCE);
+		connect_mask |= (HID_CONNECT_HIDINPUT | HID_CONNECT_HIDINPUT_FORCE);
 	if (quirks & MOT_AUDIO_JACK)
 		INIT_WORK(&sc->work, audio_jack_status_work);
 
@@ -103,9 +114,10 @@ static int mot_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_free_cancel;
 	}
 
+#ifdef CONFIG_SWITCH
 	switch_set_state(&sdev, 1);
+#endif
 
-	dbg_hid("%s %d\n", __func__, __LINE__);
 	return 0;
 
 err_free_cancel:
@@ -122,16 +134,22 @@ static void mot_remove(struct hid_device *hdev)
 	dbg_hid("%s\n", __func__);
 
 	cancel_work_sync(&sc->work);
+#ifdef CONFIG_MFD_CPCAP
+	if(sc->audio_cable_inserted)
+		cpcap_accy_whisper_audio_switch_spdif_state(0);
+#endif
 
+#ifdef CONFIG_SWITCH
 	switch_set_state(&sdev, 0);
+#endif
 
 	hid_hw_stop(hdev);
 	kfree(hid_get_drvdata(hdev));
 }
 
 static const struct hid_device_id mot_devices[] = {
-	{ HID_USB_DEVICE(USB_VENDOR_ID_MOTOROLA, USB_DEVICE_ID_HD_DOCK),
-	.driver_data = MOT_SEMU | MOT_IR_REMOTE | MOT_AUDIO_JACK },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_MOTOROLA, USB_DEVICE_ID_HD_DOCK), .driver_data =  
+	  MOT_SEMU | MOT_IR_REMOTE | MOT_AUDIO_JACK },
 	{}
 };
 MODULE_DEVICE_TABLE(hid, mot_devices);
@@ -153,22 +171,26 @@ static struct hid_driver motorola_driver = {
 static int motorola_init(void)
 {
 	int ret;
-
+	
 	dbg_hid("Registering MOT HID driver\n");
 
 	ret = hid_register_driver(&motorola_driver);
-	if (ret)
+	if(ret)
 		printk(KERN_ERR "Can't register Motorola driver\n");
 
+#ifdef CONFIG_SWITCH
 	sdev.name = "whisper_hid";
 	switch_dev_register(&sdev);
+#endif
 
 	return ret;
 }
 
 static void motorola_exit(void)
 {
+#ifdef CONFIG_SWITCH
 	switch_dev_unregister(&sdev);
+#endif
 	hid_unregister_driver(&motorola_driver);
 }
 

@@ -138,6 +138,10 @@ struct sdhci_host {
 	struct tasklet_struct finish_tasklet;
 
 	struct timer_list timer;	/* Timer for timeouts */
+	
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	unsigned int		start_offset;	/* Zero-offset for MBR */
+#endif
 
 	unsigned int caps;	/* Alternative capabilities */
 

@@ -60,3 +60,4 @@ obj-y				+= radio_ctrl/
 obj-$(CONFIG_SENSORS_MOTO_BMP085) += moto_bmp085.o
 obj-$(CONFIG_TEGRA_CRYPTO_DEV)	+= tegra-cryptodev.o
 obj-$(CONFIG_TS27010MUX)	+= ts27010mux/
+obj-$(CONFIG_MDM_CTRL)		+= mdm_ctrl.o

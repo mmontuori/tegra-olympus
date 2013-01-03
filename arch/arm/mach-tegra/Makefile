@@ -57,9 +57,12 @@ obj-${CONFIG_MACH_HARMONY}              += board-harmony-sdhci.o
 
 obj-${CONFIG_MACH_OLYMPUS}              += board-olympus.o
 obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-pinmux.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-power.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-memory.o
 obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-panel.o
 obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-i2c.o
 obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-keypad.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-tags.o
 obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-wifi.o
 
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00.o
