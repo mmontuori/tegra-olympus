@@ -26,6 +26,8 @@
 #include <linux/qtouch_obp_ts.h>
 #include <linux/interrupt.h>
 #include <linux/input.h>
+
+#include "board-olympus.h"
 #include "gpio-names.h"
 
 #define XMEGAT_BL_I2C_ADDR		0x24
@@ -352,11 +354,8 @@ static struct i2c_board_info __initdata olympus_i2c_bus4_board_info[] = {
         },
 };
 
-static int __init olympus_init_i2c(void)
+void __init olympus_i2c_init(void)
 {
-	if (!machine_is_olympus())
-		return 0;
-
 	tegra_gpio_enable(OLYMPUS_TOUCH_IRQ_GPIO);
 	gpio_request(OLYMPUS_TOUCH_IRQ_GPIO, "touch_irq");
 	gpio_direction_input(OLYMPUS_TOUCH_IRQ_GPIO);
@@ -369,9 +368,5 @@ static int __init olympus_init_i2c(void)
 	i2c_register_board_info(0, sholes_i2c_bus1_board_info, 1);
 
 	i2c_register_board_info(3, olympus_i2c_bus4_board_info, 1);
-
-	return 0;
 }
-
-device_initcall(olympus_init_i2c);
 
