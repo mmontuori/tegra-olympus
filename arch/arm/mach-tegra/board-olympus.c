@@ -24,6 +24,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/pda_power.h>
+<<<<<<< HEAD
 #include <linux/io.h>
 #include <linux/spi/cpcap.h>
 #include <linux/spi/spi.h>
@@ -32,6 +33,11 @@
 #include <linux/console.h>
 
 #include <asm/bootinfo.h>
+=======
+#include <linux/gpio.h>
+#include <linux/delay.h>
+
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
@@ -39,12 +45,21 @@
 
 #include <mach/iomap.h>
 #include <mach/irqs.h>
+<<<<<<< HEAD
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/gpio.h>
 #include <linux/cpcap-accy.h>
 #include <linux/reboot.h>
+=======
+#include <mach/iomap.h>
+#include <mach/sdhci.h>
+#include <mach/gpio.h>
+#include <mach/clk.h>
+
+#include <linux/usb/android_composite.h>
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 
 #include "clock.h"
 #include "gpio-names.h"
@@ -213,6 +228,7 @@ static char oly_unused_pins_p2[] = {
         TEGRA_GPIO_PD1,
 };
 
+<<<<<<< HEAD
 static char oly_unused_pins_p1[] = {
         TEGRA_GPIO_PO1,
         TEGRA_GPIO_PO2,
@@ -353,6 +369,23 @@ static __initdata struct tegra_clk_init_table olympus_clk_init_table[] = {
 	{ "kbc",	"clk_32k",	32768,		true},
 	{ "rtc",	"clk_32k",	32768,		true},
 	{ NULL,		NULL,		0,		0},
+=======
+/* OTG gadget device */
+static u64 tegra_otg_dmamask = DMA_BIT_MASK(32);
+
+
+static struct resource tegra_otg_resources[] = {
+	[0] = {
+		.start  = TEGRA_USB_BASE,
+		.end    = TEGRA_USB_BASE + TEGRA_USB_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = INT_USB,
+		.end    = INT_USB,
+		.flags  = IORESOURCE_IRQ,
+	},
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 };
 
 #if 1
@@ -485,6 +518,7 @@ static void __init tegra_mot_init(void)
 */
 	olympus_devices_init();
 
+<<<<<<< HEAD
 	olympus_keypad_init();
 
 	olympus_i2c_init();
@@ -492,10 +526,125 @@ static void __init tegra_mot_init(void)
 	platform_device_register(&ram_console_device);
 
 	if (0==1) config_gpios();
+=======
+
+static struct resource tegra_gart_resources[] = {
+    {
+        .name = "mc",
+        .flags = IORESOURCE_MEM,
+	.start = TEGRA_MC_BASE,
+	.end = TEGRA_MC_BASE + TEGRA_MC_SIZE - 1,
+    },
+    {
+        .name = "gart",
+        .flags = IORESOURCE_MEM,
+	.start = 0x58000000,
+	.end = 0x58000000 - 1 + 32 * 1024 * 1024,
+    }
+};
+
+
+static struct platform_device tegra_gart_dev = {
+    .name = "tegra_gart",
+    .id = -1,
+    .num_resources = ARRAY_SIZE(tegra_gart_resources),
+    .resource = tegra_gart_resources
+};
+
+static struct resource tegra_grhost_resources[] = {
+	{
+		.start = TEGRA_HOST1X_BASE,
+		.end = TEGRA_HOST1X_BASE + TEGRA_HOST1X_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = TEGRA_DISPLAY_BASE,
+		.end = TEGRA_DISPLAY_BASE + TEGRA_DISPLAY_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = TEGRA_DISPLAY2_BASE,
+		.end = TEGRA_DISPLAY2_BASE + TEGRA_DISPLAY2_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = TEGRA_VI_BASE,
+		.end = TEGRA_VI_BASE + TEGRA_VI_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = TEGRA_ISP_BASE,
+		.end = TEGRA_ISP_BASE + TEGRA_ISP_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = TEGRA_MPE_BASE,
+		.end = TEGRA_MPE_BASE + TEGRA_MPE_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = INT_SYNCPT_THRESH_BASE,
+ 		.end = INT_SYNCPT_THRESH_BASE + INT_SYNCPT_THRESH_NR - 1,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = INT_HOST1X_MPCORE_GENERAL,
+		.end = INT_HOST1X_MPCORE_GENERAL,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device tegra_grhost_dev = {
+	.name = "tegra_grhost",
+	.id = -1,
+	.resource = tegra_grhost_resources,
+	.num_resources = ARRAY_SIZE(tegra_grhost_resources),
+};
+
+static struct platform_device *olympus_devices[] __initdata = {
+	&debug_uart,
+	&tegra_otg,
+	&androidusb_device,
+	&pda_power_device,
+	&tegra_uartd_device,
+	&tegra_i2c_device1,
+	&tegra_i2c_device2,
+	&tegra_i2c_device3,
+	&tegra_i2c_device4,
+	&tegra_spi_device1,
+	&tegra_spi_device2,
+	&tegra_spi_device3,
+	&tegra_spi_device4,
+	&tegra_gart_dev,
+	&tegra_grhost_dev,
+};
+
+extern struct tegra_sdhci_platform_data olympus_wifi_data; /* sdhci1 */
+
+static struct tegra_sdhci_platform_data olympus_sdhci_platform_data3 = {
+};
+
+static struct tegra_sdhci_platform_data olympus_sdhci_platform_data4 = {
+	.cd_gpio = TEGRA_GPIO_PH2,
+	.wp_gpio = TEGRA_GPIO_PH3,
+	.power_gpio = TEGRA_GPIO_PI6,
+};
+
+static __initdata struct tegra_clk_init_table olympus_clk_init_table[] = {
+	/* name		parent		rate		enabled */
+	{ "uartb",	"clk_m",	26000000,	true},
+	{ "host1x",	"pll_p",	108000000,	true},
+	{ "2d",		"pll_m",	50000000,	true},
+	{ "epp",	"pll_m",	50000000,	true},
+	{ "vi",		"pll_m",	50000000,	true},
+	{ NULL,		NULL,		0,		0},
+};
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 
 /*	mot_setup_lights(&tegra_i2c_bus0_board_info[BACKLIGHT_DEV]);
 	mot_setup_touch(&tegra_i2c_bus0_board_info[TOUCHSCREEN_DEV]);*/
 
+<<<<<<< HEAD
 	olympus_panel_init();
 
 /*	mot_setup_gadget();*/
@@ -546,6 +695,28 @@ static void __init tegra_mot_init(void)
 		}
 	}
 
+=======
+static void olympus_sdhci_init(void)
+{
+	/* TODO: setup GPIOs for cd, wd, and power */
+	tegra_sdhci_device1.dev.platform_data = &olympus_wifi_data;
+	tegra_sdhci_device3.dev.platform_data = &olympus_sdhci_platform_data3;
+	tegra_sdhci_device4.dev.platform_data = &olympus_sdhci_platform_data4;
+
+	platform_device_register(&tegra_sdhci_device1);
+	platform_device_register(&tegra_sdhci_device3);
+	platform_device_register(&tegra_sdhci_device4); 
+}
+
+static void __init tegra_olympus_fixup(struct machine_desc *desc, struct tag *tags,
+				 char **cmdline, struct meminfo *mi)
+{
+	mi->nr_banks = 2;
+	mi->bank[0].start = PHYS_OFFSET;
+	mi->bank[0].size = 448 * SZ_1M;
+	mi->bank[1].start = SZ_512M;
+	mi->bank[1].size = SZ_512M;
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 }
 
 static void __init mot_fixup(struct machine_desc *desc, struct tag *tags,
@@ -554,6 +725,7 @@ static void __init mot_fixup(struct machine_desc *desc, struct tag *tags,
 	struct tag *t;
 	int i;
 
+<<<<<<< HEAD
 	/*
 	 * Dump some key ATAGs
 	 */
@@ -601,6 +773,17 @@ static void __init mot_fixup(struct machine_desc *desc, struct tag *tags,
 		printk("%s: bank[%d]=%lx@%lx\n", __func__, i, mi->bank[i].size, (long unsigned int)(mi->bank[i].start));
 	}
 }
+=======
+	/* Olympus has a USB switch that disconnects the usb port from the AP20
+	   unless a factory cable is used, the factory jumper is set, or the
+	   usb_data_en gpio is set.
+	 */
+	tegra_clk_init_from_table(olympus_clk_init_table);
+
+	tegra_gpio_enable(TEGRA_GPIO_PV6);
+	gpio_request(TEGRA_GPIO_PV6, "usb_data_en");
+	gpio_direction_output(TEGRA_GPIO_PV6, 1);
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 
 int __init olympus_protected_aperture_init(void)
 {
@@ -609,6 +792,7 @@ int __init olympus_protected_aperture_init(void)
 }
 late_initcall(olympus_protected_aperture_init);
 
+<<<<<<< HEAD
 void __init tegra_olympus_reserve(void)
 {
 	u64 ram_console_start;
@@ -644,5 +828,41 @@ MACHINE_START(OLYMPUS, "Olympus")
     .timer        = &tegra_timer,
     .init_machine = tegra_mot_init,
 
+=======
+	clk = tegra_get_clock_by_name("uartb");
+	debug_uart_platform_data[0].uartclk = clk_get_rate(clk);
+
+	clk = clk_get_sys("dsi", NULL);
+	clk_enable(clk);
+	clk_put(clk);
+
+	clk = clk_get_sys("3d", NULL);
+	tegra_periph_reset_assert(clk);
+	writel(0x101, IO_ADDRESS(TEGRA_PMC_BASE) + 0x30);
+	clk_enable(clk);
+	udelay(10);
+	writel(1 << 1, IO_ADDRESS(TEGRA_PMC_BASE) + 0x34);
+	tegra_periph_reset_deassert(clk);
+	clk_put(clk);
+
+
+	platform_add_devices(olympus_devices, ARRAY_SIZE(olympus_devices));
+
+	olympus_keypad_init();
+	olympus_i2c_init();
+	olympus_panel_init();
+	olympus_sdhci_init();
+	olympus_wlan_init();
+}
+
+MACHINE_START(OLYMPUS, "Olympus")
+	.boot_params  = 0x00000100,
+	.fixup		= tegra_olympus_fixup,
+	.map_io         = tegra_map_common_io,
+	.init_early	= tegra_init_early,
+	.init_irq       = tegra_init_irq,
+	.timer          = &tegra_timer,
+	.init_machine   = tegra_olympus_init,
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 MACHINE_END
 

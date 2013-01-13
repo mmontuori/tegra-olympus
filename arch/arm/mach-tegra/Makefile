@@ -55,6 +55,7 @@ obj-${CONFIG_MACH_HARMONY}              += board-harmony-pcie.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-power.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-sdhci.o
 
+<<<<<<< HEAD
 obj-${CONFIG_MACH_OLYMPUS}             += board-olympus.o
 obj-${CONFIG_MACH_OLYMPUS}             += board-olympus-devices.o
 obj-${CONFIG_MACH_OLYMPUS}             += board-olympus-pinmux.o
@@ -73,6 +74,14 @@ obj-${CONFIG_MACH_OLYMPUS}             += board-olympus-power.o
 #obj-${CONFIG_MACH_OLYMPUS}             += board-olympus-bluetooth.o
 #obj-${CONFIG_MACH_OLYMPUS}             += board-olympus-gps.o
 obj-${CONFIG_MACH_OLYMPUS}             += board-olympus-memory.o
+=======
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-pinmux.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-panel.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-i2c.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-keypad.o
+obj-${CONFIG_MACH_OLYMPUS}              += board-olympus-wifi.o
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00.o
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00-pinmux.o

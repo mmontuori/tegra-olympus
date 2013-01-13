@@ -354,7 +354,10 @@ CONFIG_ALIGNMENT_TRAP=y
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
 CONFIG_CMDLINE="mem=448M@0M console=ttyS0,115200n8 earlyprintk=ttyS0,115200n8,keep init=/bin/ash"
+<<<<<<< HEAD
 CONFIG_CMDLINE_PREPEND_ATRIX=y
+=======
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 # CONFIG_XIP_KERNEL is not set
 # CONFIG_KEXEC is not set
 

@@ -15,6 +15,7 @@ extern struct platform_driver cpcap_usb_connected_driver;
 extern struct l3g4200d_platform_data tegra_gyro_pdata;*/
 
 void olympus_pinmux_init(void);
+<<<<<<< HEAD
 int olympus_panel_init(void);
 void olympus_emc_init(void);
 void olympus_devices_init(void);
@@ -59,5 +60,11 @@ extern void cpcap_set_dock_switch(int state);
 #ifndef PROX_INT_GPIO
 #define	PROX_INT_GPIO	TEGRA_GPIO_PE1
 #endif
+=======
+int olympus_keypad_init(void);
+void olympus_i2c_init(void);
+int olympus_panel_init(void);
+int olympus_wlan_init(void);
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 
 #endif

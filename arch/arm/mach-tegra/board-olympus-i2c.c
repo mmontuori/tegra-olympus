@@ -374,6 +374,10 @@ void __init olympus_i2c_init(void)
 	i2c_register_board_info(3, olympus_i2c_bus4_board_info, 
 				ARRAY_SIZE(olympus_i2c_bus4_board_info));
 
+<<<<<<< HEAD
 
+=======
+	i2c_register_board_info(3, olympus_i2c_bus4_board_info, 1);
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 }
 

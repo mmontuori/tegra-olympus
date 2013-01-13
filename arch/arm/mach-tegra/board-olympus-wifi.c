@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 /* linux/arch/arm/mach-msm/board-stingray-wifi.c
+=======
+/* linux/arch/arm/mach-msm/board-olympus-wifi.c
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 */
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -8,24 +12,36 @@
 #include <asm/mach-types.h>
 #include <asm/gpio.h>
 #include <asm/io.h>
+<<<<<<< HEAD
 #include <asm/setup.h>
 #include <linux/if.h>
+=======
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 #include <linux/skbuff.h>
 #include <linux/wlan_plat.h>
 #include <mach/sdhci.h>
 
+<<<<<<< HEAD
 #include <linux/random.h>
 #include <linux/jiffies.h>
 
+=======
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 #include "board-olympus.h"
 #include "gpio-names.h"
 
 #define OLYMPUS_WLAN_IRQ	TEGRA_GPIO_PU5
+<<<<<<< HEAD
 #define OLYMPUS_WLAN_RST	TEGRA_GPIO_PU2
 
 #define ATAG_OLYMPUS_MAC	0x57464d41
 #define ATAG_OLYMPUS_MAC_DEBUG
 
+=======
+#define OLYMPUS_WLAN_PWR	TEGRA_GPIO_PU3
+#define OLYMPUS_WLAN_RST	TEGRA_GPIO_PU2
+
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 #define PREALLOC_WLAN_NUMBER_OF_SECTIONS	4
 #define PREALLOC_WLAN_NUMBER_OF_BUFFERS		160
 #define PREALLOC_WLAN_SECTION_HEADER		24
@@ -86,7 +102,11 @@ static struct resource olympus_wifi_resources[] = {
 		.name		= "bcm4329_wlan_irq",
 		.start		= TEGRA_GPIO_TO_IRQ(OLYMPUS_WLAN_IRQ),
 		.end		= TEGRA_GPIO_TO_IRQ(OLYMPUS_WLAN_IRQ),
+<<<<<<< HEAD
 		.flags          = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE,
+=======
+		.flags          = IORESOURCE_IRQ | IORESOURCE_IRQ_LOWEDGE,
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 	},
 };
 
@@ -123,6 +143,7 @@ static unsigned int olympus_wifi_status(struct device *dev)
 {
 	return olympus_wifi_cd;
 }
+<<<<<<< HEAD
 /*STI-OLY this needs to be verified, I assume it should work but someone should check it*/
 struct tegra_sdhci_platform_data olympus_wifi_data = {
 	.cd_gpio = -1,
@@ -141,6 +162,20 @@ struct tegra_sdhci_platform_data olympus_wifi_data = {
 };
 
 static int olympus_wifi_set_carddetect(int val)
+=======
+
+struct tegra_sdhci_platform_data olympus_wifi_data = {
+
+	.mmc_data = {
+		.ocr_mask		= MMC_VDD_165_195,
+		.status			= olympus_wifi_status,
+		.register_status_notify	= olympus_wifi_status_register,
+		.embedded_sdio		= &olympus_wifi_emb_data,
+	}
+};
+
+int olympus_wifi_set_carddetect(int val)
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 {
 	pr_debug("%s: %d\n", __func__, val);
 	olympus_wifi_cd = val;
@@ -153,6 +188,7 @@ static int olympus_wifi_set_carddetect(int val)
 
 static int olympus_wifi_power_state;
 
+<<<<<<< HEAD
 static int olympus_wifi_power(int on)
 {
 	pr_debug("%s: %d\n", __func__, on);
@@ -162,6 +198,17 @@ static int olympus_wifi_power(int on)
 	msleep(300);
 	gpio_set_value(OLYMPUS_WLAN_RST, on);
 	msleep(200);
+=======
+int olympus_wifi_power(int on)
+{
+	pr_debug("%s: %d\n", __func__, on);
+
+	mdelay(100);
+	gpio_set_value(OLYMPUS_WLAN_PWR, on);
+	mdelay(100);
+	gpio_set_value(OLYMPUS_WLAN_RST, on);
+	mdelay(200);
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 
 	olympus_wifi_power_state = on;
 	return 0;
@@ -169,13 +216,18 @@ static int olympus_wifi_power(int on)
 
 static int olympus_wifi_reset_state;
 
+<<<<<<< HEAD
 static int olympus_wifi_reset(int on)
+=======
+int olympus_wifi_reset(int on)
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 {
 	pr_debug("%s: do nothing\n", __func__);
 	olympus_wifi_reset_state = on;
 	return 0;
 }
 
+<<<<<<< HEAD
 static unsigned char olympus_mac_addr[IFHWADDRLEN] = { 0,0x90,0xc3,0,0,0 };
 
 static int __init parse_tag_wlan_mac(const struct tag *tag)
@@ -286,13 +338,18 @@ static void *olympus_wifi_get_country_code(char *ccode)
 	return &olympus_wifi_translate_custom_table[0];
 }
 
+=======
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 static struct wifi_platform_data olympus_wifi_control = {
 	.set_power      = olympus_wifi_power,
 	.set_reset      = olympus_wifi_reset,
 	.set_carddetect = olympus_wifi_set_carddetect,
 	.mem_prealloc	= olympus_wifi_mem_prealloc,
+<<<<<<< HEAD
 	.get_mac_addr	= olympus_wifi_get_mac_addr,
 	.get_country_code = olympus_wifi_get_country_code,
+=======
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 };
 
 static struct platform_device olympus_wifi_device = {
@@ -307,12 +364,22 @@ static struct platform_device olympus_wifi_device = {
 
 static void __init olympus_wlan_gpio(void)
 {
+<<<<<<< HEAD
+=======
+	tegra_gpio_enable(OLYMPUS_WLAN_PWR);
+	gpio_request(OLYMPUS_WLAN_PWR, "wlan_pwr");
+	gpio_direction_output(OLYMPUS_WLAN_PWR, 0);
+
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 	tegra_gpio_enable(OLYMPUS_WLAN_RST);
 	gpio_request(OLYMPUS_WLAN_RST, "wlan_rst");
 	gpio_direction_output(OLYMPUS_WLAN_RST, 0);
 
+<<<<<<< HEAD
 /*STI-OLY didn't add WLAN_REG_ON_GPIO from 2.6.32.9 */
 
+=======
+>>>>>>> a43e12f... initial commit for bootable olympus kernel
 	tegra_gpio_enable(OLYMPUS_WLAN_IRQ);
 	gpio_request(OLYMPUS_WLAN_IRQ, "wlan_irq");
 	gpio_direction_input(OLYMPUS_WLAN_IRQ);
