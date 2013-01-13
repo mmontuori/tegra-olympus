@@ -19,10 +19,16 @@
 #ifndef __LED_LD_CPCAP_H__
 #define __LED_LD_CPCAP_H__
 
+#ifdef __KERNEL__
+
+#define LD_CPCAP_LED_DRV "cpcap_led_driver"
 #define LD_MSG_IND_DEV "notification-led"
 #define LD_DISP_BUTTON_DEV "button-backlight"
 #define LD_KPAD_DEV "keyboard-backlight"
 #define LD_AF_LED_DEV "af-led"
+
+#define LD_PRIVACY_LED_DEV "privacy-led"
+#define LD_NOTIF_LED_DEV "notification-led"
 
 #define LD_MSG_IND_ON               0x1
 #define LD_MSG_IND_CURRENT          0x2
@@ -53,4 +59,16 @@
 
 #define LD_ALT_ADBL_CURRENT         0x4
 
+struct cpcap_led {
+	u8 blink_able;
+	unsigned short cpcap_register;
+	unsigned short cpcap_reg_mask;
+	unsigned short cpcap_reg_period;
+	unsigned short cpcap_reg_duty_cycle;
+	unsigned short cpcap_reg_current;
+	char *class_name;
+	char *led_regulator;
+};
+
+#endif  /* __KERNEL__ */
 #endif  /* __LED_LD_CPCAP_H__ */

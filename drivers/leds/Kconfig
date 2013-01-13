@@ -35,7 +35,7 @@ config LEDS_ATMEL_PWM
 	  of the dedicated PWM controller found on newer Atmel SOCs.
 
 config LEDS_LM3532
-	tristate "Support for LM3530 display backlight driver"
+	tristate "Support for LM3532 display backlight driver"
 	depends on LEDS_CLASS
 	help
 	  This option enables support for LM3532 display backlight driver
@@ -61,6 +61,12 @@ config LEDS_CPCAP_RGB
 	depends on LEDS_CLASS && MFD_CPCAP
 	help
 	  This option enables support for RGB LEDs connected to CPCAP
+
+config LEDS_CPCAP
+	tristate "LED Support for Display LEDS connected to CPCAP"
+	depends on LEDS_CLASS && MFD_CPCAP
+	help
+	  This option enables support for display LEDs connected to CPCAP
 
 config LEDS_LOCOMO
 	tristate "LED Support for Locomo device"

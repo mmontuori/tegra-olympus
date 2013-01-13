@@ -1,11 +1,13 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/leds-ld-cpcap.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/pda_power.h>
 #include <linux/io.h>
 #include <linux/spi/cpcap.h>
+#include <linux/spi/cpcap-regbits.h>
 #include <linux/spi/spi.h>
 #include <linux/delay.h>
 #include <linux/reboot.h>
@@ -32,11 +34,17 @@
 #include "gpio-names.h"
 #include "board.h"
 #include "hwrev.h"
+#include "pm.h"
+#include "fuse.h"
+#include "wakeups-t2.h"
 
 #include "board-olympus.h"
 
 #define PWRUP_FACTORY_CABLE         0x00000020 /* Bit 5  */
 #define PWRUP_INVALID               0xFFFFFFFF
+
+#define PMC_CTRL		0x0
+#define PMC_CTRL_INTR_LOW	(1 << 17)
 
 extern void arch_reset(char mode, const char *cmd);
 static int disable_rtc_alarms(struct device *dev, void *cnt);
@@ -89,11 +97,13 @@ void mot_system_power_off(void)
 
 static int is_olympus_ge_p0(struct cpcap_device *cpcap)
 {
+	printk(KERN_INFO "pICS_%s: testing...\n",__func__);
 	return 1;
 }
 
 static int is_olympus_ge_p3(struct cpcap_device *cpcap)
 {
+	printk(KERN_INFO "pICS_%s: testing...\n",__func__);
 	if (HWREV_TYPE_IS_FINAL(system_rev) ||
 		(HWREV_TYPE_IS_PORTABLE(system_rev) &&
 		 (HWREV_REV(system_rev) >= HWREV_REV_3))) {
@@ -106,6 +116,8 @@ enum cpcap_revision cpcap_get_revision(struct cpcap_device *cpcap)
 {
 	unsigned short value;
 
+	printk(KERN_INFO "pICS_%s: testing...\n",__func__);
+
 	/* Code taken from drivers/mfd/cpcap_core.c, since the revision value
 	   is not initialized until after the registers are initialized, which
 	   will happen after the trgra_cpcap_spi_init table is used. */
@@ -116,8 +128,295 @@ enum cpcap_revision cpcap_get_revision(struct cpcap_device *cpcap)
 
 int is_cpcap_eq_3_1(struct cpcap_device *cpcap)
 {
+	printk(KERN_INFO "pICS_%s: testing...\n",__func__);
 	return cpcap_get_revision(cpcap) == CPCAP_REVISION_3_1;
 }
+
+static struct cpcap_device *cpcap_di;
+
+static int cpcap_validity_reboot(struct notifier_block *this,
+				 unsigned long code, void *cmd)
+{
+	int ret = -1;
+	int result = NOTIFY_DONE;
+	char *mode = cmd;
+
+	printk(KERN_INFO "pICS_%s: testing...\n",__func__);
+
+	dev_info(&(cpcap_di->spi->dev), "Saving power down reason.\n");
+
+	if (code == SYS_RESTART) {
+		if (mode != NULL && !strncmp("outofcharge", mode, 12)) {
+			/* Set the outofcharge bit in the cpcap */
+			ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+						 CPCAP_BIT_OUT_CHARGE_ONLY,
+						 CPCAP_BIT_OUT_CHARGE_ONLY);
+			if (ret) {
+				dev_err(&(cpcap_di->spi->dev),
+					"outofcharge cpcap set failure.\n");
+				result = NOTIFY_BAD;
+			}
+			/* Set the soft reset bit in the cpcap */
+			cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+					   CPCAP_BIT_SOFT_RESET,
+					   CPCAP_BIT_SOFT_RESET);
+			if (ret) {
+				dev_err(&(cpcap_di->spi->dev),
+					"reset cpcap set failure.\n");
+				result = NOTIFY_BAD;
+			}
+		}
+
+		/* Check if we are starting recovery mode */
+		if (mode != NULL && !strncmp("recovery", mode, 9)) {
+			/* Set the fota (recovery mode) bit in the cpcap */
+			ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+				CPCAP_BIT_FOTA_MODE, CPCAP_BIT_FOTA_MODE);
+			if (ret) {
+				dev_err(&(cpcap_di->spi->dev),
+					"Recovery cpcap set failure.\n");
+				result = NOTIFY_BAD;
+			}
+		} else {
+			/* Set the fota (recovery mode) bit in the cpcap */
+			ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1, 0,
+						 CPCAP_BIT_FOTA_MODE);
+			if (ret) {
+				dev_err(&(cpcap_di->spi->dev),
+					"Recovery cpcap clear failure.\n");
+				result = NOTIFY_BAD;
+			}
+		}
+		/* Check if we are going into fast boot mode */
+		if (mode != NULL && !strncmp("bootloader", mode, 11)) {
+			/* Set the bootmode bit in the cpcap */
+			ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+				CPCAP_BIT_BOOT_MODE, CPCAP_BIT_BOOT_MODE);
+			if (ret) {
+				dev_err(&(cpcap_di->spi->dev),
+					"Boot mode cpcap set failure.\n");
+				result = NOTIFY_BAD;
+			}
+		}
+	} else {
+		ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+					 0,
+					 CPCAP_BIT_OUT_CHARGE_ONLY);
+		if (ret) {
+			dev_err(&(cpcap_di->spi->dev),
+				"outofcharge cpcap set failure.\n");
+			result = NOTIFY_BAD;
+		}
+
+		/* Clear the soft reset bit in the cpcap */
+		ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1, 0,
+					 CPCAP_BIT_SOFT_RESET);
+		if (ret) {
+			dev_err(&(cpcap_di->spi->dev),
+				"SW Reset cpcap set failure.\n");
+			result = NOTIFY_BAD;
+		}
+		/* Clear the fota (recovery mode) bit in the cpcap */
+		ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1, 0,
+					 CPCAP_BIT_FOTA_MODE);
+		if (ret) {
+			dev_err(&(cpcap_di->spi->dev),
+				"Recovery cpcap clear failure.\n");
+			result = NOTIFY_BAD;
+		}
+	}
+
+	/* Always clear the kpanic bit */
+	ret = cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+				 0, CPCAP_BIT_AP_KERNEL_PANIC);
+	if (ret) {
+		dev_err(&(cpcap_di->spi->dev),
+			"Clear kernel panic bit failure.\n");
+		result = NOTIFY_BAD;
+	}
+
+	return result;
+}
+
+static struct notifier_block validity_reboot_notifier = {
+	.notifier_call = cpcap_validity_reboot,
+};
+
+static int cpcap_validity_probe(struct platform_device *pdev)
+{
+	int err;
+
+	printk(KERN_INFO "pICS_%s: testing...\n",__func__);
+
+	if (pdev->dev.platform_data == NULL) {
+		dev_err(&pdev->dev, "no platform_data\n");
+		return -EINVAL;
+	}
+
+	cpcap_di = pdev->dev.platform_data;
+
+	cpcap_regacc_write(cpcap_di, CPCAP_REG_VAL1,
+			   (CPCAP_BIT_AP_KERNEL_PANIC | CPCAP_BIT_SOFT_RESET),
+			   (CPCAP_BIT_AP_KERNEL_PANIC | CPCAP_BIT_SOFT_RESET));
+
+	register_reboot_notifier(&validity_reboot_notifier);
+
+	err = cpcap_uc_start(cpcap_di, CPCAP_BANK_PRIMARY, CPCAP_MACRO_14);
+	dev_info(&pdev->dev, "Started macro 14: %d\n", err);
+
+	/* Enable workaround to allow soft resets to work */
+	cpcap_regacc_write(cpcap_di, CPCAP_REG_PGC,
+			   CPCAP_BIT_SYS_RST_MODE, CPCAP_BIT_SYS_RST_MODE);
+	err = cpcap_uc_start(cpcap_di, CPCAP_BANK_PRIMARY, CPCAP_MACRO_15);
+	dev_info(&pdev->dev, "Started macro 15: %d\n", err);
+
+	return 0;
+}
+
+static int cpcap_validity_remove(struct platform_device *pdev)
+{
+	unregister_reboot_notifier(&validity_reboot_notifier);
+	cpcap_di = NULL;
+
+	return 0;
+}
+
+static struct platform_driver cpcap_validity_driver = {
+	.probe = cpcap_validity_probe,
+	.remove = cpcap_validity_remove,
+	.driver = {
+		.name = "cpcap_validity",
+		.owner  = THIS_MODULE,
+	},
+};
+
+static struct platform_device cpcap_validity_device = {
+	.name   = "cpcap_validity",
+	.id     = -1,
+	.dev    = {
+		.platform_data  = NULL,
+	},
+};
+
+static struct platform_device cpcap_3mm5_device = {
+	.name   = "cpcap_3mm5",
+	.id     = -1,
+	.dev    = {
+		.platform_data  = NULL,
+	},
+};
+
+static struct cpcap_whisper_pdata whisper_pdata = {
+	.data_gpio = TEGRA_GPIO_PV4,
+	.data_gpio = -1,
+	.pwr_gpio  = TEGRA_GPIO_PT2,
+	.uartmux   = 1,
+};
+
+static struct platform_device cpcap_whisper_device = {
+	.name   = "cpcap_whisper",
+	.id     = -1,
+	.dev    = {
+		.platform_data  = &whisper_pdata,
+	},
+};
+#if 0
+static struct platform_device cpcap_batt_device = {
+	.name           = "cpcap_battery",
+	.id             = -1,
+	.dev.platform_data = NULL,
+};
+
+struct platform_device cpcap_disp_button_led = {
+	.name		= LD_DISP_BUTTON_DEV,
+	.id		= -1,
+	.dev		= {
+		.platform_data  = NULL,
+	},
+};
+
+struct platform_device cpcap_rgb_led = {
+	.name		= LD_MSG_IND_DEV,
+	.id		= -1,
+	.dev		= {
+		.platform_data  = NULL,
+	},
+};
+
+static struct platform_device cpcap_rtc_device = {
+	.name           = "cpcap_rtc",
+	.id             = -1,
+	.dev.platform_data = NULL,
+};
+
+static struct platform_device cpcap_usb_device = {
+	.name           = "cpcap_usb",
+	.id             = -1,
+	.dev.platform_data = NULL,
+};
+
+static struct platform_device cpcap_audio_device = {
+	.name           = "cpcap_audio",
+	.id             = -1,
+	.dev.platform_data  = NULL,
+};
+#endif
+static struct platform_device cpcap_usb_det_device = {
+	.name           = "cpcap_usb_det",
+	.id             = -1,
+	.dev.platform_data = NULL,
+};
+
+#ifdef CONFIG_CPCAP_WATCHDOG
+static struct platform_device cpcap_wdt_device = {
+	.name           = "cpcap_wdt",
+	.id             = -1,
+	.dev.platform_data = NULL,
+};
+#endif
+
+#ifdef CONFIG_TTA_CHARGER
+static struct platform_device cpcap_tta_det_device = {
+  .name           = "cpcap_tta_charger",
+  .id             = -1,
+  .dev.platform_data = NULL,
+};
+#endif
+
+#ifdef CONFIG_LEDS_AF_LED
+struct platform_device cpcap_af_led = {
+	.name		= LD_AF_LED_DEV,
+	.id		= -1,
+	.dev		= {
+		.platform_data  = NULL,
+	},
+};
+#endif
+
+static struct platform_device *cpcap_devices[] = {
+	&cpcap_validity_device,
+	&cpcap_3mm5_device,
+	&cpcap_usb_det_device,
+#ifdef CONFIG_BLABLABLA
+	&cpcap_notification_led,
+	&cpcap_privacy_led,
+	&cpcap_batt_device,
+	&cpcap_rgb_led,
+	&cpcap_disp_button_led,
+	&cpcap_usb_device,
+	&cpcap_audio_device,
+	&cpcap_rtc_device,
+#endif
+#ifdef CONFIG_CPCAP_WATCHDOG
+	&cpcap_wdt_device,
+#endif
+#ifdef CONFIG_TTA_CHARGER
+	&cpcap_tta_det_device,
+#endif
+#ifdef CONFIG_LEDS_AF_LED
+	&cpcap_af_led,
+#endif
+};
 
 struct cpcap_spi_init_data tegra_cpcap_spi_init[] = {
 	/* Set SW1 to AMS/AMS 1.025v. */
@@ -407,6 +706,8 @@ struct cpcap_mode_value *cpcap_regulator_off_mode_values[] = {
 };
 
 #define REGULATOR_CONSUMER(name, device) { .supply = name, .dev = device, }
+#define REGULATOR_CONSUMER_BY_DEVICE(name, device) \
+	{ .supply = name, .dev = device, }
 
 struct regulator_consumer_supply cpcap_sw1_consumers[] = {
 	REGULATOR_CONSUMER("sw1", NULL /* core */),
@@ -418,7 +719,6 @@ struct regulator_consumer_supply cpcap_sw2_consumers[] = {
 
 struct regulator_consumer_supply cpcap_sw3_consumers[] = {
 	REGULATOR_CONSUMER("sw3", NULL /* VIO */),
-	REGULATOR_CONSUMER("odm-kit-vio", NULL),
 };
 
 struct regulator_consumer_supply cpcap_sw4_consumers[] = {
@@ -428,18 +728,15 @@ struct regulator_consumer_supply cpcap_sw4_consumers[] = {
 struct regulator_consumer_supply cpcap_sw5_consumers[] = {
 	REGULATOR_SUPPLY("sw5", "button-backlight"),
 	REGULATOR_SUPPLY("sw5", "notification-led"),
-	REGULATOR_CONSUMER("odm-kit-sw5", NULL),
 	REGULATOR_SUPPLY("sw5", NULL),
 };
 
 struct regulator_consumer_supply cpcap_vcam_consumers[] = {
 	REGULATOR_CONSUMER("vcam", NULL /* cpcap_cam_device */),
-	REGULATOR_CONSUMER("odm-kit-vcam", NULL),
 };
 
 struct regulator_consumer_supply cpcap_vhvio_consumers[] = {
 	REGULATOR_CONSUMER("vhvio", NULL /* lighting_driver */),
-	REGULATOR_CONSUMER("odm-kit-vhvio", NULL),
 #if 0
 	REGULATOR_CONSUMER("vhvio", NULL /* lighting_driver */),
 	REGULATOR_CONSUMER("vhvio", NULL /* magnetometer */),
@@ -451,12 +748,10 @@ struct regulator_consumer_supply cpcap_vhvio_consumers[] = {
 
 struct regulator_consumer_supply cpcap_vsdio_consumers[] = {
 	REGULATOR_CONSUMER("vsdio", NULL),
-	REGULATOR_CONSUMER("odm-kit-vsdio", NULL)
 };
 
 struct regulator_consumer_supply cpcap_vpll_consumers[] = {
 	REGULATOR_CONSUMER("vpll", NULL),
-	REGULATOR_CONSUMER("odm-kit-vpll", NULL),
 };
 
 #if 0
@@ -469,9 +764,12 @@ struct regulator_consumer_supply cpcap_vcsi_consumers[] = {
 	REGULATOR_CONSUMER("vcsi", NULL),
 };
 
+struct regulator_consumer_supply cpcap_vusb_consumers[] = {
+	REGULATOR_CONSUMER_BY_DEVICE("vusb", &cpcap_whisper_device.dev),
+};
+
 struct regulator_consumer_supply cpcap_vwlan1_consumers[] = {
 	REGULATOR_CONSUMER("vwlan1", NULL),
-	REGULATOR_CONSUMER("odm-kit-vwlan1", NULL),
 };
 
 struct regulator_consumer_supply cpcap_vwlan2_consumers[] = {
@@ -481,12 +779,10 @@ struct regulator_consumer_supply cpcap_vwlan2_consumers[] = {
 	REGULATOR_CONSUMER("vusb_modem_flash", NULL),
 	REGULATOR_CONSUMER("vusb_modem_ipc", NULL),
 	REGULATOR_CONSUMER("vhdmi", NULL),
-	REGULATOR_CONSUMER("odm-kit-vwlan2", NULL),
 };
 
 struct regulator_consumer_supply cpcap_vsimcard_consumers[] = {
 	REGULATOR_CONSUMER("vsimcard", NULL /* sd slot */),
-	REGULATOR_CONSUMER("odm-kit-vsimcard", NULL),
 };
 
 struct regulator_consumer_supply cpcap_vvib_consumers[] = {
@@ -495,7 +791,6 @@ struct regulator_consumer_supply cpcap_vvib_consumers[] = {
 
 struct regulator_consumer_supply cpcap_vaudio_consumers[] = {
 	REGULATOR_CONSUMER("vaudio", NULL /* mic opamp */),
-	REGULATOR_CONSUMER("odm-kit-vaudio", NULL /* mic opamp */),
 };
 
 static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
@@ -693,6 +988,8 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 			.apply_uV		= 1,
 		},
+		.num_consumer_supplies	= ARRAY_SIZE(cpcap_vusb_consumers),
+		.consumer_supplies	= cpcap_vusb_consumers,
 	},
 	[CPCAP_VAUDIO] = {
 		.constraints = {
@@ -731,6 +1028,9 @@ struct cpcap_platform_data tegra_cpcap_data =
 	.regulator_off_mode_values = cpcap_regulator_off_mode_values,
 	.regulator_init = cpcap_regulator,
 	.adc_ato = &cpcap_adc_ato,
+	.ac_changed = NULL,
+	.batt_changed = NULL,
+	.usb_changed = NULL,
 	.wdt_disable = 0,
 	.hwcfg = {
 		(CPCAP_HWCFG0_SEC_STBY_SW3 |
@@ -780,7 +1080,6 @@ static struct platform_device fixed_regulator_devices[] = {
 };
 
 struct spi_board_info tegra_spi_devices[] __initdata = {
-#ifdef CONFIG_MFD_CPCAP
     {
         .modalias = "cpcap",
         .bus_num = 1,
@@ -788,19 +1087,8 @@ struct spi_board_info tegra_spi_devices[] __initdata = {
         .mode = SPI_MODE_0,
         .max_speed_hz = 8000000,
         .controller_data = &tegra_cpcap_data,
-        .irq = INT_EXTERNAL_PMU,
+        .irq = 118,
     },
-#elif defined CONFIG_SPI_SPIDEV
-    {
-        .modalias = "spidev",
-        .bus_num = 1,
-        .chip_select = 0,
-        .mode = SPI_MODE_0,
-        .max_speed_hz = 18000000,
-        .platform_data = NULL,
-        .irq = 0,
-    },
-#endif
 };
 
 static int cpcap_usb_connected_probe(struct platform_device *pdev)
@@ -837,9 +1125,9 @@ try_f7:
 /*	gpio_data[nr_gpio].alloc = true;
 	gpio_data[nr_gpio].val = false;*/
 
-	tegra_gpio_enable(nr_gpio);
+/*	tegra_gpio_enable(nr_gpio);
 	gpio_direction_output(nr_gpio, 0);	
-	gpio_set_value(nr_gpio, 1);
+	gpio_set_value(nr_gpio, 1);*/
 
 	platform_set_drvdata(pdev, pdata);
 
@@ -863,7 +1151,7 @@ try_f7:
 static int cpcap_usb_connected_remove(struct platform_device *pdev)
 {
 /*	struct cpcap_usb_connected_data *data = platform_get_drvdata(pdev);*/
-	struct cpcap_accy_platform_data *pdata = pdev->dev.platform_data;
+/*	struct cpcap_accy_platform_data *pdata = pdev->dev.platform_data;*/
 
 	int nr_gpio;
 
@@ -940,16 +1228,98 @@ static struct platform_device cpcap_reg_virt_sw5 =
 };
 #endif
 
+static struct tegra_suspend_platform_data olympus_suspend_data = {
+	.cpu_timer 	= 800,
+	.cpu_off_timer	= 600,
+	.suspend_mode	= TEGRA_SUSPEND_LP1,
+	.core_timer	= 1842,
+	.core_off_timer = 31,
+	.corereq_high	= true,
+	.sysclkreq_high	= true,
+};
+
+void __init olympus_suspend_init(void)
+{
+#if 0
+	printk(KERN_INFO "pICS_%s: wake PL1 (irq nr %d)...\n",__func__, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PL1));
+		/*	enable_irq(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PL1));
+			printk(KERN_INFO "pICS_%s: enabled PL1 irq...\n",__func__);*/
+			enable_irq_wake(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PL1));
+			printk(KERN_INFO "pICS_%s: enabled PL1 wake...\n",__func__);
+
+	printk(KERN_INFO "pICS_%s: wake PA0 (irq nr %d)...\n",__func__, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PA0));
+/*			enable_irq(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PA0));
+			printk(KERN_INFO "pICS_%s: enabled PA0 irq...\n",__func__);*/
+			enable_irq_wake(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PA0));
+			printk(KERN_INFO "pICS_%s: enabled PA0 wake...\n",__func__);
+
+	printk(KERN_INFO "pICS_%s: wake PU5 (irq nr %d)...\n",__func__, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU5));
+/*			enable_irq(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU5));
+			printk(KERN_INFO "pICS_%s: enabled PU5 irq...\n",__func__);*/
+			enable_irq_wake(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU5));
+			printk(KERN_INFO "pICS_%s: enabled PU5 wake...\n",__func__);
+
+	printk(KERN_INFO "pICS_%s: step PU6 (irq nr %d)...\n",__func__, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU6));
+/*			enable_irq(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU6));
+			printk(KERN_INFO "pICS_%s: enabled PU6 irq...\n",__func__);
+			enable_irq_wake(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU6));
+			printk(KERN_INFO "pICS_%s: enabled PU6 wake...\n",__func__);*/
+
+	printk(KERN_INFO "pICS_%s: step KBC (irq nr %d)...\n",__func__, INT_KBC);
+/*			enable_irq(INT_KBC);
+			printk(KERN_INFO "pICS_%s: enabled KBC irq...\n",__func__);*/
+			enable_irq_wake(INT_KBC);
+			printk(KERN_INFO "pICS_%s: enabled KBC wake...\n",__func__);
+
+printk(KERN_INFO "pICS_%s: step PWR (irq nr %d)...\n",__func__, INT_EXTERNAL_PMU);
+printk(KERN_INFO "pICS_%s: step PWR (GPIO nr %d)...\n",__func__, TEGRA_IRQ_TO_GPIO(INT_EXTERNAL_PMU));	
+			enable_irq(INT_EXTERNAL_PMU);
+			printk(KERN_INFO "pICS_%s: enabled PWR irq...\n",__func__);
+			enable_irq_wake(INT_EXTERNAL_PMU);
+			printk(KERN_INFO "pICS_%s: enabled PWR wake...\n",__func__);
+
+	printk(KERN_INFO "pICS_%s: step PV2 (irq nr %d)...\n",__func__, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV2));
+/*			enable_irq(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV2));
+			printk(KERN_INFO "pICS_%s: enabled PV2 irq...\n",__func__);*/
+			enable_irq_wake(TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV2));
+			printk(KERN_INFO "pICS_%s: enabled PV2 wake...\n",__func__);
+#endif
+
+	printk(KERN_INFO "pICS_%s: enabled PWR irq...\n",__func__);
+	enable_irq_wake(INT_EXTERNAL_PMU);
+
+	tegra_init_suspend(&olympus_suspend_data);
+}
+
 void __init olympus_power_init(void)
 {
 	unsigned int i;
 	int error;
+#if 0
+	unsigned long pmc_ctrl;
+	unsigned long minor;
 
-	printk(KERN_INFO "pICS_%s: system_rev = 0x%x\n",__func__, system_rev);
-	printk(KERN_INFO "pICS_%s: HWREV_TYPE_IS_FINAL = %s\n",__func__, ((HWREV_TYPE_IS_FINAL(system_rev))?"true":"false"));
-	printk(KERN_INFO "pICS_%s: HWREV_TYPE_IS_PORTABLE = %s\n",__func__, ((HWREV_TYPE_IS_PORTABLE(system_rev))?"true":"false"));
-	printk(KERN_INFO "pICS_%s: HWREV = 0x%x\n",__func__, HWREV_REV(system_rev));
+	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
+	void __iomem *chip_id = IO_ADDRESS(TEGRA_APB_MISC_BASE) + 0x804;
 
+	minor = (readl(chip_id) >> 16) & 0xf;
+	/* A03 (but not A03p) chips do not support LP0 */
+	if (minor == 3 && !(tegra_spare_fuse(18) || tegra_spare_fuse(19)))
+		olympus_suspend_data.suspend_mode = TEGRA_SUSPEND_LP1;
+
+	/* configure the power management controller to trigger PMU
+	 * interrupts when low */
+	pmc_ctrl = readl(pmc + PMC_CTRL);
+	writel(pmc_ctrl | PMC_CTRL_INTR_LOW, pmc + PMC_CTRL);
+
+	/* Enable CORE_PWR_REQ signal from T20. The signal must be enabled
+	 * before the CPCAP uC firmware is started. */
+	pmc_ctrl = readl(IO_ADDRESS(TEGRA_PMC_BASE));
+	pmc_ctrl |= 0x00000200;
+	writel(pmc_ctrl, IO_ADDRESS(TEGRA_PMC_BASE));
+#endif
+	printk(KERN_INFO "pICS_%s: step in...\n",__func__);
+	
 	/* CPCAP standby lines connected to CPCAP GPIOs on Etna P1B & Olympus P2 */
 	if ( HWREV_TYPE_IS_FINAL(system_rev) ||
 	     (machine_is_etna() &&
@@ -986,13 +1356,25 @@ void __init olympus_power_init(void)
 	    HWREV_TYPE_IS_MORTABLE(system_rev) ){
 		tegra_cpcap_data.wdt_disable = 1;
 	}
+/*
+	tegra_gpio_enable(TEGRA_GPIO_PT2);
+	gpio_request(TEGRA_GPIO_PT2, "usb_host_pwr_en");
+	gpio_direction_output(TEGRA_GPIO_PT2, 0);
+*/
+	printk(KERN_INFO "pICS_%s: step in 2...\n",__func__);
 
 	spi_register_board_info(tegra_spi_devices, ARRAY_SIZE(tegra_spi_devices));
+
+	for (i = 0; i < ARRAY_SIZE(cpcap_devices); i++)
+		cpcap_device_register(cpcap_devices[i]);
+
+	(void) cpcap_driver_register(&cpcap_validity_driver);
 
 	for (i = 0; i < sizeof(fixed_regulator_devices)/sizeof(fixed_regulator_devices[0]); i++) {
 		error = platform_device_register(&fixed_regulator_devices[i]);
 		pr_info("Registered reg-fixed-voltage: %d result: %d\n", i, error);
 	}
+	(void) platform_driver_register(&cpcap_usb_connected_driver);
 
 #ifdef CONFIG_REGULATOR_VIRTUAL_CONSUMER
 	(void) platform_device_register(&cpcap_reg_virt_vcam);
@@ -1000,6 +1382,7 @@ void __init olympus_power_init(void)
 	(void) platform_device_register(&cpcap_reg_virt_vcsi_2);
 	(void) platform_device_register(&cpcap_reg_virt_sw5);
 #endif
+	olympus_suspend_init();
 }
 
 static int disable_rtc_alarms(struct device *dev, void *data)

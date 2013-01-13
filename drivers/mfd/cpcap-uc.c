@@ -45,6 +45,8 @@
 #define HWCFG_ADDR_ST        0x0130
 #define HWCFG_ADDR_TI        0x90F4  /* Not yet implemented in the TI uC. */
 
+/*#define HWCFG_ADDR_ST        0x0122*/
+
 enum {
 	READ_STATE_1,	/* Send size and location of RAM read. */
 	READ_STATE_2,   /*!< Read MT registers. */
@@ -79,8 +81,7 @@ struct cpcap_uc_data {
 static struct cpcap_uc_data *cpcap_uc_info;
 
 static int fops_open(struct inode *inode, struct file *file);
-static long fops_ioctl(struct file *file,
-		      unsigned int cmd, unsigned long arg);
+static long fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 static ssize_t fops_write(struct file *file, const char *buf,
 			  size_t count, loff_t *ppos);
 static ssize_t fops_read(struct file *file, char *buf,
@@ -328,8 +329,6 @@ static void reset_handler(enum cpcap_irqs irq, void *data)
 
 	cpcap_regacc_write(uc_data->cpcap, CPCAP_REG_MI2, 0, 0xFFFF);
 	cpcap_regacc_write(uc_data->cpcap, CPCAP_REG_MIM1, 0xFFFF, 0xFFFF);
-	cpcap_regacc_write_secondary(uc_data->cpcap, CPCAP_REG_MI2, 0, 0xFFFF);
-	cpcap_regacc_write_secondary(uc_data->cpcap, CPCAP_REG_MIM1, 0xFFFF, 0xFFFF);
 	cpcap_irq_mask(uc_data->cpcap, CPCAP_IRQ_PRIMAC);
 	cpcap_irq_unmask(uc_data->cpcap, CPCAP_IRQ_UCRESET);
 
@@ -354,29 +353,33 @@ static int ram_write(struct cpcap_uc_data *uc_data, unsigned short address,
 		     unsigned short num_words, unsigned short *data)
 {
 	int retval = -EFAULT;
-
+	printk(KERN_INFO "pICS_%s: step 1\n",__func__);
 	mutex_lock(&uc_data->lock);
-
+	printk(KERN_INFO "pICS_%s: step 2\n",__func__);
 	if ((uc_data->cpcap->vendor == CPCAP_VENDOR_ST) &&
 	    (uc_data->cpcap->revision <= CPCAP_REVISION_2_0)) {
+
 		cpcap_regacc_write(uc_data->cpcap, CPCAP_REG_UCTM,
 				   CPCAP_BIT_UCTM, CPCAP_BIT_UCTM);
+		printk(KERN_INFO "pICS_%s: step 3\n",__func__);
 	}
 
 	if (uc_data->is_supported && (num_words > 0) &&
 		(data != NULL) &&
 		is_valid_address(uc_data->cpcap, address, num_words) &&
 	    !uc_data->uc_reset) {
+		printk(KERN_INFO "pICS_%s: step 4\n",__func__);
 		uc_data->req.address = address;
 		uc_data->req.data = data;
 		uc_data->req.num_words = num_words;
 		uc_data->state = WRITE_STATE_1;
 		uc_data->state_cntr = 0;
 		INIT_COMPLETION(uc_data->completion);
-
+		printk(KERN_INFO "pICS_%s: step 5\n",__func__);
 		retval = cpcap_regacc_write(uc_data->cpcap, CPCAP_REG_MI2,
 					CPCAP_BIT_PRIRAMW,
 					CPCAP_BIT_PRIRAMW);
+		printk(KERN_INFO "pICS_%s: step 6\n",__func__);
 		if (retval)
 			goto err;
 
@@ -384,10 +387,12 @@ static int ram_write(struct cpcap_uc_data *uc_data, unsigned short address,
 		 * cannot be called from the state machine. Doing so causes
 		 * a deadlock. */
 		retval = cpcap_irq_unmask(uc_data->cpcap, CPCAP_IRQ_UC_PRIRAMW);
+		printk(KERN_INFO "pICS_%s: step 7\n",__func__);
 		if (retval)
 			goto err;
 
 		wait_for_completion(&uc_data->completion);
+		printk(KERN_INFO "pICS_%s: step 8\n",__func__);
 		retval = uc_data->cb_status;
 	}
 
@@ -396,9 +401,11 @@ err:
 	    (uc_data->cpcap->revision <= CPCAP_REVISION_2_0)) {
 		cpcap_regacc_write(uc_data->cpcap, CPCAP_REG_UCTM,
 				   0, CPCAP_BIT_UCTM);
+		printk(KERN_INFO "pICS_%s: step 9\n",__func__);
 	}
 
 	mutex_unlock(&uc_data->lock);
+	printk(KERN_INFO "pICS_%s: step 10\n",__func__);
 	return retval;
 }
 
@@ -550,8 +557,8 @@ err:
 	return retval;
 }
 
-static long fops_ioctl(struct file *file,
-		      unsigned int cmd, unsigned long arg)
+static long fops_ioctl(struct file *file, unsigned int cmd,
+		       unsigned long arg)
 {
 	int retval = -ENOTTY;
 	struct cpcap_uc_data *data = file->private_data;
@@ -565,14 +572,12 @@ static long fops_ioctl(struct file *file,
 		 */
 		data->is_ready = 1;
 
-		retval = cpcap_uc_start(data->cpcap, CPCAP_BANK_PRIMARY,
-			                (enum cpcap_macro)arg);
+		retval = cpcap_uc_start(data->cpcap, CPCAP_BANK_PRIMARY, (enum cpcap_macro)arg);
 
 		break;
 
 	case CPCAP_IOCTL_UC_MACRO_STOP:
-		retval = cpcap_uc_stop(data->cpcap, CPCAP_BANK_PRIMARY,
-				       (enum cpcap_macro)arg);
+		retval = cpcap_uc_stop(data->cpcap, CPCAP_BANK_PRIMARY, (enum cpcap_macro)arg);
 		break;
 
 	case CPCAP_IOCTL_UC_GET_VENDOR:
@@ -753,8 +758,10 @@ static int fw_load(struct cpcap_uc_data *uc_data, struct device *dev)
 	if (!uc_data || !dev)
 		return -EINVAL;
 
-	if (uc_data->cpcap->vendor == CPCAP_VENDOR_ST)
+	if (uc_data->cpcap->vendor == CPCAP_VENDOR_ST) {
 		err = request_ihex_firmware(&fw, "cpcap/firmware_0_2x.fw", dev);
+		printk(KERN_INFO "pICS_%s: requesting cpcap/firmware_0_2x.fw\n",__func__);
+	}
 	else
 		err = request_ihex_firmware(&fw, "cpcap/firmware_1_2x.fw", dev);
 
@@ -773,14 +780,16 @@ static int fw_load(struct cpcap_uc_data *uc_data, struct device *dev)
 			num_bytes++;
 			odd_bytes = 1;
 		}
-
+		printk(KERN_INFO "pICS_%s: step 1\n",__func__);
 		num_words = num_bytes >> 1;
-		dev_dbg(dev, "Loading %d word(s) at 0x%04x\n",
+		dev_info(dev, "Loading %d word(s) at 0x%04x\n",
 			 num_words, be32_to_cpu(rec->addr));
-
+		printk(KERN_INFO "pICS_%s: step 2\n",__func__);		
 		buf = kzalloc(num_bytes, GFP_KERNEL);
 		if (buf) {
+			printk(KERN_INFO "pICS_%s: step 3\n",__func__);
 			for (i = 0; i < num_words; i++) {
+				printk(KERN_INFO "pICS_%s: step 4\n",__func__);
 				if (odd_bytes && (i == (num_words - 1)))
 					buf[i] = rec->data[i * 2];
 				else
@@ -788,11 +797,12 @@ static int fw_load(struct cpcap_uc_data *uc_data, struct device *dev)
 
 				buf[i] = be16_to_cpu(buf[i]);
 			}
-
+			printk(KERN_INFO "pICS_%s: step 5\n",__func__);
 			err = ram_write(uc_data, be32_to_cpu(rec->addr),
 					num_words, buf);
+			printk(KERN_INFO "pICS_%s: step 5a\n",__func__);
 			kfree(buf);
-
+			printk(KERN_INFO "pICS_%s: step 6\n",__func__);
 			if (err) {
 				dev_err(dev, "RAM write failed: %d\n", err);
 				break;
@@ -805,7 +815,7 @@ static int fw_load(struct cpcap_uc_data *uc_data, struct device *dev)
 	}
 
 	release_firmware(fw);
-
+	printk(KERN_INFO "pICS_%s: step 7\n",__func__);
 	if (!err) {
 		uc_data->is_ready = 1;
 
@@ -904,15 +914,21 @@ static int cpcap_uc_probe(struct platform_device *pdev)
 
 err_fw:
 	misc_deregister(&uc_dev);
+	printk(KERN_INFO "pICS_%s: unable to load firmware\n",__func__);
 err_priramw:
 	cpcap_irq_free(data->cpcap, CPCAP_IRQ_UC_PRIRAMW);
+	printk(KERN_INFO "pICS_%s: cpcap error err_priramw\n",__func__);
 err_priramr:
 	cpcap_irq_free(data->cpcap, CPCAP_IRQ_UC_PRIRAMR);
+	printk(KERN_INFO "pICS_%s: cpcap error err_priramr\n",__func__);
 err_ucreset:
 	cpcap_irq_free(data->cpcap, CPCAP_IRQ_UCRESET);
+	printk(KERN_INFO "pICS_%s: cpcap error err_ucreset\n",__func__);
 err_primac:
 	cpcap_irq_free(data->cpcap, CPCAP_IRQ_PRIMAC);
+	printk(KERN_INFO "pICS_%s: cpcap error err_primac\n",__func__);
 err_free:
+	printk(KERN_INFO "pICS_%s: cpcap error err_free\n",__func__);
 	kfree(data);
 
 	return retval;

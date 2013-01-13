@@ -1215,7 +1215,7 @@ int cpcap_accy_whisper(struct cpcap_device *cpcap, unsigned long cmd)
 	return retval;
 }
 
-static int __init cpcap_usb_det_probe(struct platform_device *pdev)
+static int cpcap_usb_det_probe(struct platform_device *pdev)
 {
 	int retval;
 	struct cpcap_usb_det_data *data;

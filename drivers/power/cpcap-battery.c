@@ -42,6 +42,10 @@
 #define CPCAP_BATT_IRQ_MACRO   0x10
 #define CPCAP_BATT_IRQ_LOWBPHL 0x20
 
+/*static int cpcap_batt_ioctl(struct inode *inode,
+			    struct file *file,
+			    unsigned int cmd,
+			    unsigned long arg);*/
 static long cpcap_batt_ioctl(struct file *file,
 			    unsigned int cmd,
 			    unsigned long arg);
@@ -234,6 +238,10 @@ static ssize_t cpcap_batt_read(struct file *file,
 	return ret;
 }
 
+/*static int cpcap_batt_ioctl(struct inode *inode,
+			    struct file *file,
+			    unsigned int cmd,
+			    unsigned long arg)*/
 static long cpcap_batt_ioctl(struct file *file,
 			    unsigned int cmd,
 			    unsigned long arg)

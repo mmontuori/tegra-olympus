@@ -18,13 +18,13 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/rtc.h>
 #include <linux/err.h>
+#include <linux/slab.h>
 #include <linux/spi/cpcap.h>
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 #include <linux/miscdevice.h>
 
 #define CNT_MASK  0xFFFF
@@ -34,7 +34,7 @@
 #define TOD1_MASK 0x00FF
 #define TOD2_MASK 0x01FF
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 static int cpcap_rtc_open(struct inode *inode, struct file *file);
 static int cpcap_rtc_ioctl(struct inode *inode, struct file *file,
 			    unsigned int cmd, unsigned long arg);
@@ -53,7 +53,7 @@ struct cpcap_rtc {
 	struct rtc_device *rtc_dev;
 	int alarm_enabled;
 	int second_enabled;
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	struct device *dev;
 	struct mutex lock;	/* protect access to flags */
 	wait_queue_head_t wait;
@@ -62,7 +62,7 @@ struct cpcap_rtc {
 #endif
 };
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 static const struct file_operations cpcap_rtc_fops = {
 	.owner = THIS_MODULE,
 	.open = cpcap_rtc_open,
@@ -188,25 +188,6 @@ cpcap_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 	return 0;
 }
 
-static int
-cpcap_rtc_update_irq_enable(struct device *dev, unsigned int enabled)
-{
-	struct cpcap_rtc *rtc = dev_get_drvdata(dev);
-	int err;
-
-	if (enabled)
-		err = cpcap_irq_unmask(rtc->cpcap, CPCAP_IRQ_1HZ);
-	else
-		err = cpcap_irq_mask(rtc->cpcap, CPCAP_IRQ_1HZ);
-
-	if (err < 0)
-		return err;
-
-	rtc->second_enabled = enabled;
-
-	return 0;
-}
-
 static int cpcap_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
 	struct cpcap_rtc *rtc;
@@ -245,7 +226,7 @@ static int cpcap_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	int second_masked;
 	int alarm_masked;
 	int ret = 0;
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	unsigned short local_cnt;
 #endif
 
@@ -265,7 +246,7 @@ static int cpcap_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	if (!alarm_masked)
 		cpcap_irq_mask(rtc->cpcap, CPCAP_IRQ_TODA);
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	/* Increment the counter and update validity 2 register */
 	ret = cpcap_regacc_read(rtc->cpcap, CPCAP_REG_VAL2, &local_cnt);
 
@@ -312,7 +293,7 @@ static int cpcap_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	if (!alarm_masked)
 		cpcap_irq_unmask(rtc->cpcap, CPCAP_IRQ_TODA);
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	mutex_lock(&rtc->lock);
 	rtc->data_pending = 1;
 	mutex_unlock(&rtc->lock);
@@ -355,7 +336,7 @@ static int cpcap_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	rtc2cpcap_time(&cpcap_tm, &alrm->time);
 
-	if(rtc->alarm_enabled)
+	if (rtc->alarm_enabled)
 		cpcap_irq_mask(rtc->cpcap, CPCAP_IRQ_TODA);
 
 	ret = cpcap_regacc_write(rtc->cpcap, CPCAP_REG_DAYA, cpcap_tm.day,
@@ -375,8 +356,7 @@ static struct rtc_class_ops cpcap_rtc_ops = {
 	.set_time		= cpcap_rtc_set_time,
 	.read_alarm		= cpcap_rtc_read_alarm,
 	.set_alarm		= cpcap_rtc_set_alarm,
-	.alarm_irq_enable 	= cpcap_rtc_alarm_irq_enable,
-/*	.update_irq_enable 	= cpcap_rtc_update_irq_enable,*/
+	.alarm_irq_enable	= cpcap_rtc_alarm_irq_enable,
 };
 
 static void cpcap_rtc_irq(enum cpcap_irqs irq, void *data)
@@ -398,7 +378,7 @@ static void cpcap_rtc_irq(enum cpcap_irqs irq, void *data)
 static int __devinit cpcap_rtc_probe(struct platform_device *pdev)
 {
 	struct cpcap_rtc *rtc;
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	int ret = 0;
 #endif
 
@@ -416,7 +396,7 @@ static int __devinit cpcap_rtc_probe(struct platform_device *pdev)
 		return PTR_ERR(rtc->rtc_dev);
 	}
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	rtc->dev = &pdev->dev;
 	ret = misc_register(&cpcap_rtc_dev);
 	if (ret != 0) {
@@ -448,7 +428,7 @@ static int __devexit cpcap_rtc_remove(struct platform_device *pdev)
 	cpcap_irq_free(rtc->cpcap, CPCAP_IRQ_TODA);
 	cpcap_irq_free(rtc->cpcap, CPCAP_IRQ_1HZ);
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
+#ifdef RTC_INTF_CPCAP_SECCLKD
 	misc_deregister(&cpcap_rtc_dev);
 #endif
 	rtc_device_unregister(rtc->rtc_dev);

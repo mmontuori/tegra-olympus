@@ -218,7 +218,6 @@ static void pwrkey_handler(enum cpcap_irqs irq, void *data)
 	if ((new_state < PWRKEY_UNKNOWN) && (new_state != last_state)) {
 #endif
 		wake_lock_timeout(&pwrkey_data->wake_lock, 20);
-		cancel_delayed_work_sync(&pwrkey_data->pwrkey_delayed_work);
 		cpcap_broadcast_key_event(cpcap, KEY_END, new_state);
 		pwrkey_data->state = new_state;
 	} else if ((last_state == PWRKEY_RELEASE) &&
@@ -227,7 +226,7 @@ static void pwrkey_handler(enum cpcap_irqs irq, void *data)
 		 * both the press and the release. */
 		wake_lock_timeout(&pwrkey_data->wake_lock, 20);
 		cpcap_broadcast_key_event(cpcap, KEY_END, PWRKEY_PRESS);
-		schedule_delayed_work(&pwrkey_data->pwrkey_delayed_work, 10);
+		cpcap_broadcast_key_event(cpcap, KEY_END, PWRKEY_RELEASE);
 	}
 	cpcap_irq_unmask(cpcap, CPCAP_IRQ_ON);
 }

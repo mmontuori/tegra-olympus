@@ -45,7 +45,7 @@ static int olympus_touch_reset(void)
 
 	return 0;
 }
-
+/*
 static struct vkey sholes_touch_vkeys[] = {
 	{
 		.code		= KEY_BACK,
@@ -89,6 +89,7 @@ static struct qtm_touch_keyarray_cfg sholes_key_array_data[] = {
 		.reserve10 = 0,
 	},
 };
+*/
 
 struct qtouch_ts_platform_data olympus_touch_data = {
 
@@ -126,11 +127,11 @@ struct qtouch_ts_platform_data olympus_touch_data = {
 	},
 	.acquire_cfg	= {
 		.charge_time	= 0x06,
-		.reserve1	= 0x00,
+		//.atouch_drift	= 0x00,
 		.touch_drift	= 0x0a,
 		.drift_susp	= 0x05,
 		.touch_autocal	= 0x00,
-		.reserve5	= 0,
+		//.sync	= 0,
 		.atch_cal_suspend_time	= 0,
 		.atch_cal_suspend_thres	= 0,
 	},
@@ -339,7 +340,7 @@ struct qtouch_ts_platform_data olympus_touch_data = {
 	},
 };
 
-static struct i2c_board_info __initdata sholes_i2c_bus1_board_info[] = {
+static struct i2c_board_info __initdata olympus_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO(QTOUCH_TS_NAME, 0x4a),
 		.platform_data = &olympus_touch_data,
@@ -365,8 +366,14 @@ void __init olympus_i2c_init(void)
 	gpio_direction_output(OLYMPUS_TOUCH_RESET_GPIO, 1);
 
 
-	i2c_register_board_info(0, sholes_i2c_bus1_board_info, 1);
+	printk("%s: registering i2c devices...\n", __func__);
+	printk("bus 0: %d devices\n", ARRAY_SIZE(olympus_i2c_bus1_board_info));
+	i2c_register_board_info(0, olympus_i2c_bus1_board_info, 
+				ARRAY_SIZE(olympus_i2c_bus1_board_info));
+	printk("bus 3: %d devices\n", ARRAY_SIZE(olympus_i2c_bus4_board_info));
+	i2c_register_board_info(3, olympus_i2c_bus4_board_info, 
+				ARRAY_SIZE(olympus_i2c_bus4_board_info));
 
-	i2c_register_board_info(3, olympus_i2c_bus4_board_info, 1);
+
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2011 Motorola, Inc.
+ * Copyright (C) 2007-2009 Motorola, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -24,6 +24,7 @@
 #include <linux/spi/cpcap-regbits.h>
 
 #define IS_CPCAP(reg) ((reg) >= CPCAP_REG_START && (reg) <= CPCAP_REG_END)
+
 #define CPCAP_SECONDARY_CS    1
 #define CPCAP_DEBUG_FLAG_DUMP_PRI  0x00000001
 #define CPCAP_DEBUG_FLAG_DUMP_SEC  0x00000002
@@ -300,6 +301,7 @@ static unsigned int get_reg_name(char *src, char *reg_name)
 	return i;
 }
 
+
 /*
  * Parse the string used for setting up debugging of registers.  Only symbols
  * can be used, numbers are ignored.  The genral format of the string is:
@@ -426,6 +428,7 @@ int cpcap_regacc_set_debug(const char *kmessage, struct kernel_param *kp)
 	return 0;
 }
 
+
 static int cpcap_spi_access(struct spi_device *spi, u8 *buf,
 			    size_t len)
 {
@@ -436,9 +439,9 @@ static int cpcap_spi_access(struct spi_device *spi, u8 *buf,
 		.rx_buf = buf,
 		.bits_per_word = 32,
 	};
-
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
+	// printk(KERN_INFO "pICS_%s: step 3...\n",__func__);
 	return spi_sync(spi, &m);
 }
 
@@ -451,18 +454,21 @@ static int cpcap_config_for_read(struct spi_device *spi, unsigned short reg,
 
 	if (spi != NULL) {
 #ifdef CONFIG_ARCH_TEGRA
+//	// printk(KERN_INFO "pICS_%s: step 2... #ifdef CONFIG_ARCH_TEGRA\n",__func__);
       buf[0] = (reg >> 6) & 0x000000FF;
       buf[1] = (reg << 2) & 0x000000FF;
       buf[2] = 0;
       buf[3] = 0;
 #else
+//		// printk(KERN_INFO "pICS_%s: not TEGRA\n",__func__);
 		buf[3] = (reg >> 6) & 0x000000FF;
 		buf[2] = (reg << 2) & 0x000000FF;
 		buf[1] = 0;
 		buf[0] = 0;
 #endif
+//		// printk(KERN_INFO "pICS_%s: step 3...(buf = 0x%x)\n",__func__,buf);
 		status = cpcap_spi_access(spi, buf, 4);
-
+		
 		if (status == 0)
 
 #ifdef CONFIG_ARCH_TEGRA
@@ -470,9 +476,8 @@ static int cpcap_config_for_read(struct spi_device *spi, unsigned short reg,
 #else
 		*data = buf[0] | (buf[1] << 8);
 #endif
-
  	}
-
+	// printk(KERN_INFO "pICS_%s: step 4...(status = %d)\n",__func__, status);
 	return status;
 }
 
@@ -482,24 +487,26 @@ static int cpcap_config_for_write(struct spi_device *spi, unsigned short reg,
 	int status = -ENOTTY;
 	u32 buf32;  /* force buf to be 32bit aligned */
 	u8 *buf = (u8 *) &buf32;
-
+	
 	if (spi != NULL) {
-
+//	// printk(KERN_INFO "pICS_%s: step 1...\n",__func__);
 #ifdef CONFIG_ARCH_TEGRA
-      buf[0] = ((reg >> 6) & 0x000000FF) | 0x80;
-      buf[1] = (reg << 2) & 0x000000FF;
-      buf[2] = (data >> 8) & 0x000000FF;
-      buf[3] = data & 0x000000FF;
+//	// printk(KERN_INFO "pICS_%s: step 2... #ifdef CONFIG_ARCH_TEGRA\n",__func__);
+     	buf[0] = ((reg >> 6) & 0x000000FF) | 0x80;
+     	buf[1] = (reg << 2) & 0x000000FF;
+     	buf[2] = (data >> 8) & 0x000000FF;
+     	buf[3] = data & 0x000000FF;
 #else
+//		// printk(KERN_INFO "pICS_%s: step 2...\n",__func__);
 		buf[3] = ((reg >> 6) & 0x000000FF) | 0x80;
 		buf[2] = (reg << 2) & 0x000000FF;
 		buf[1] = (data >> 8) & 0x000000FF;
 		buf[0] = data & 0x000000FF;
 #endif
-
+//		// printk(KERN_INFO "pICS_%s: step 3...(buf = 0x%x)\n",__func__,buf);
 		status = cpcap_spi_access(spi, buf, 4);
+		// printk(KERN_INFO "pICS_%s: step 4...ending\n",__func__);
 	}
-
 	return status;
 }
 
@@ -531,6 +538,7 @@ int cpcap_regacc_read(struct cpcap_device *cpcap, enum cpcap_reg reg,
 		printk (KERN_ERR "%s: Unable to read from register %d\n",
 			__func__, register_info_tbl[reg].address);
 
+
 	return retval;
 }
 
@@ -543,16 +551,17 @@ int cpcap_regacc_write(struct cpcap_device *cpcap,
 	unsigned short old_value = 0;
 	struct cpcap_platform_data *data;
 	struct spi_device *spi = cpcap->spi;
-
+//	// printk(KERN_INFO "pICS_%s: step 1...\n",__func__);
 	data = (struct cpcap_platform_data *)spi->controller_data;
-
+//	// printk(KERN_INFO "pICS_%s: step 2...\n",__func__);
 	if (IS_CPCAP(reg) &&
 	    (mask & register_info_tbl[reg].constant_mask) == 0) {
+//		// printk(KERN_INFO "pICS_%s: step 3...\n",__func__);
 		mutex_lock(&reg_access);
 
 		value &= mask;
-
 		if ((register_info_tbl[reg].rbw_mask) != 0) {
+//			// printk(KERN_INFO "pICS_%s: step 4...\n",__func__);
 			retval = cpcap_config_for_read(spi, register_info_tbl
 						       [reg].address,
 						       &old_value);
@@ -566,7 +575,7 @@ int cpcap_regacc_write(struct cpcap_device *cpcap,
 		retval = cpcap_config_for_write(spi,
 						register_info_tbl[reg].address,
 						value);
-		if (cpcap->spi->chip_select != CPCAP_SECONDARY_CS) {
+	if (cpcap->spi->chip_select != CPCAP_SECONDARY_CS) {
 			if (register_info_tbl[reg].debug_flags&CPCAP_DEBUG_FLAG_LOG_PRI_W)
 				printk(KERN_INFO "%s Primary register: %d %s %04x\n",
 					__func__, reg, register_info_tbl[reg].name, value);
@@ -578,10 +587,6 @@ int cpcap_regacc_write(struct cpcap_device *cpcap,
 error:
 		mutex_unlock(&reg_access);
 	}
-
-	if (retval)
-		printk (KERN_ERR "%s: Unable to write 0x%x & 0x%x to register %d\n",
-			__func__, value, mask, register_info_tbl[reg].address);
 
 	return retval;
 }
@@ -678,24 +683,50 @@ void cpcap_regacc_dump(struct cpcap_device *cpcap, char *note)
 
 int cpcap_regacc_init(struct cpcap_device *cpcap)
 {
+#if 0
 	unsigned short i;
 	unsigned short mask;
-	unsigned short reg;
 	int retval = 0;
 	struct cpcap_platform_data *data;
 	struct spi_device *spi = cpcap->spi;
 
 	data = (struct cpcap_platform_data *)spi->controller_data;
 
+	for (i = 0; i < data->init_len; i++) {
+		mask = 0xFFFF;
+		mask &= ~(register_info_tbl[data->init[i].reg].constant_mask);
+
+		retval = cpcap_regacc_write(cpcap, data->init[i].reg,
+					    data->init[i].data,
+					    mask);
+		if (retval)
+			break;
+	}
+#endif
+	unsigned short i;
+	unsigned short mask;
+	unsigned short reg;
+	int retval = 0;
+	struct cpcap_platform_data *data;
+	struct spi_device *spi = cpcap->spi;
+	
+//	// printk(KERN_INFO "pICS_%s: step 1...\n",__func__);
+	data = (struct cpcap_platform_data *)spi->controller_data;
+//	// printk(KERN_INFO "pICS_%s: step 2...\n",__func__);
 	i = 0;
 	while (i < data->init_len) {
+//		// printk(KERN_INFO "pICS_%s: step !3...\n",__func__);
 		if ((data->init[i].hw_check == NULL) ||
 			(data->init[i].hw_check(cpcap))) {
+//			// printk(KERN_INFO "pICS_%s: step 3a...\n",__func__);			
 			reg = data->init[i].reg;
+			// printk(KERN_INFO "pICS_%s: step 3b reg=0x%x\n",__func__, reg);			
 			mask = 0xFFFF;
 			mask &= ~(register_info_tbl[reg].constant_mask);
-
+			// printk(KERN_INFO "pICS_%s: step 3c mask=0x%x\n",__func__, mask);			
+//			// printk(KERN_INFO "pICS_%s: step 3d...\n",__func__);
 			retval = cpcap_regacc_write(cpcap, reg, data->init[i].data, mask);
+//			// printk(KERN_INFO "pICS_%s: step 3e...\n",__func__);
 			if (retval)
 				break;
 			do {
@@ -706,7 +737,8 @@ int cpcap_regacc_init(struct cpcap_device *cpcap)
 		}
 		i++;
 	}
+//	// printk(KERN_INFO "pICS_%s: step 4...\n",__func__);
 	update_debug_flags();
-
+	// printk(KERN_INFO "pICS_%s: step 5...\n",__func__);
 	return retval;
 }
